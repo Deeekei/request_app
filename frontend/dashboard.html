@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* Временные стили для отладки */
+        .debug-info {
+            background: #f0f0f0;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #3498db;
+            font-family: monospace;
+        }
+        .error-box {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Панель управления</h1>
+            <nav>
+                <a href="dashboard.html">Главная</a>
+                <a href="requests.html">Заявки</a>
+                <a href="#" id="logoutBtn">Выход</a>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Добавляем отладочную информацию -->
+            <div id="debugInfo" class="debug-info" style="display: none;"></div>
+
+            <!-- Индикатор загрузки -->
+            <div id="loading" class="loading">Загрузка данных...</div>
+
+            <!-- Контейнер для ошибок -->
+            <div id="errorContainer" class="error-box" style="display: none;"></div>
+
+            <!-- Основной контент (скрыт до загрузки) -->
+            <div id="content" style="display: none;">
+                <div id="userInfo" class="user-info">
+                    <h2>Информация о пользователе</h2>
+                    <div id="userInfoContent">Загрузка...</div>
+                </div>
+
+                <div id="roleSpecificMenu" class="role-menu">
+                    <!-- Меню будет загружаться в зависимости от роли -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Подключаем скрипты в правильном порядке -->
+    <script src="js/auth.js"></script>
+    <script>
+        // Функция для отладки
+        function debugLog(message, data = null) {
+            console.log(`[Dashboard] ${message}`, data || '');
+            const debugDiv = document.getElementById('debugInfo');
+            if (debugDiv) {
+                debugDiv.style.display = 'block';
+                debugDiv.innerHTML += `<div>${message} ${data ? JSON.stringify(data) : ''}</div>`;
+            }
+        }
+
+        function showError(message) {
+            console.error('[Dashboard] Ошибка:', message);
+            document.getElementById('loading').style.display = 'none';
+            const errorDiv = document.getElementById('errorContainer');
+            errorDiv.style.display = 'block';
+            errorDiv.innerHTML = `<strong>Ошибка:</strong> ${message}`;
+        }
+
+        function showContent() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+        }
+
+        // Основная функция загрузки
+        async function loadDashboard() {
+            debugLog('Страница загружена');
+
+            try {
+                // Проверяем авторизацию
+                debugLog('Проверка токена...');
+                const token = getToken();
+
+                if (!token) {
+                    debugLog('Токен отсутствует, перенаправление...');
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                debugLog('Токен найден');
+
+                // Загружаем данные пользователя
+                debugLog('Загрузка данных пользователя...');
+                const user = await getCurrentUser();
+                debugLog('Данные пользователя получены', user);
+
+                // Отображаем информацию
+                displayUserInfo(user);
+                displayRoleMenu(user.role);
+
+                // Показываем контент
+                showContent();
+
+            } catch (error) {
+                debugLog('Ошибка:', error.message);
+
+                if (error.message === 'Token expired' || error.message === 'No token') {
+                    debugLog('Проблема с токеном, перенаправление...');
+                    logout();
+                } else {
+                    showError(error.message);
+                }
+            }
+        }
+
+        function displayUserInfo(user) {
+            debugLog('Отображение информации пользователя', user);
+
+            const content = document.getElementById('userInfoContent');
+            if (!content) {
+                debugLog('Элемент userInfoContent не найден');
+                return;
+            }
+
+            content.innerHTML = `
+                <p><strong>ID:</strong> ${user.id}</p>
+                <p><strong>Имя пользователя:</strong> ${user.username}</p>
+                <p><strong>Полное имя:</strong> ${user.full_name}</p>
+                <p><strong>Роль:</strong> ${user.role}</p>
+                <p><strong>Дата регистрации:</strong> ${new Date(user.created_at).toLocaleString()}</p>
+            `;
+        }
+
+        function displayRoleMenu(role) {
+            debugLog('Отображение меню для роли:', role);
+
+            const menu = document.getElementById('roleSpecificMenu');
+            if (!menu) {
+                debugLog('Элемент roleSpecificMenu не найден');
+                return;
+            }
+
+            let menuHTML = '<h2>Доступные действия</h2><div class="menu-grid">';
+
+            switch(role) {
+                case 'администратор':
+                case 'директор':
+                    menuHTML += `
+                        <a href="requests.html?filter=all" class="menu-item">Все заявки</a>
+                        <a href="requests.html?filter=pending" class="menu-item">Ожидающие проверки</a>
+                        <a href="requests.html?filter=approved" class="menu-item">Согласованные</a>
+                        <a href="requests.html?filter=rejected" class="menu-item">Отклоненные</a>
+                    `;
+                    break;
+                case 'ПТО':
+                    menuHTML += `
+                        <a href="requests.html?filter=pto_pending" class="menu-item">Ожидают проверки ПТО</a>
+                        <a href="requests.html?filter=all" class="menu-item">Все заявки</a>
+                        <a href="requests.html?action=create" class="menu-item">Создать заявку</a>
+                    `;
+                    break;
+                case 'заказчик':
+                    menuHTML += `
+                        <a href="requests.html?filter=customer_pending" class="menu-item">Ожидают проверки</a>
+                        <a href="requests.html?filter=all" class="menu-item">Мои заявки</a>
+                        <a href="requests.html?action=create" class="menu-item">Создать заявку</a>
+                    `;
+                    break;
+                default:
+                    menuHTML += `
+                        <a href="requests.html?filter=my" class="menu-item">Мои заявки</a>
+                        <a href="requests.html?action=create" class="menu-item">Создать заявку</a>
+                    `;
+            }
+
+            menuHTML += '</div>';
+            menu.innerHTML = menuHTML;
+        }
+
+        // Запускаем после загрузки DOM
+        document.addEventListener('DOMContentLoaded', () => {
+            debugLog('DOM загружен');
+
+            // Загружаем данные
+            loadDashboard();
+
+            // Обработчик выхода
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    debugLog('Выход из системы');
+                    logout();
+                });
+            }
+        });
+    </script>
+</body>
+</html>
