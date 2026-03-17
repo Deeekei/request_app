@@ -63,7 +63,7 @@ async def register(
     try:
         db_user = repo.create_user(
             user_data=user_data,
-            role=UserRoleEnum.USER.value
+            role=UserRoleEnum.USER.name
         )
     except Exception as e:
         raise HTTPException(

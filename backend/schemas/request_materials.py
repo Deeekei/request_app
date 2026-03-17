@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, List
 from datetime import datetime
 from backend.schemas.material import UnitEnum
-from schemas.request_models import OrderStatus
+from backend.schemas.request_models import OrderStatus
 
 
 class RequestMaterialBase(BaseModel):

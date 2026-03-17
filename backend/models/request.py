@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base
 from backend.models.enum import OrderStatusEnum, UserRoleEnum
+from backend.models.agreement import AgreementMaterial
 
 
 class RequestMaterial(Base):
@@ -18,7 +19,7 @@ class RequestMaterial(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Связи
-    request = relationship("Request", back_populates="materials")
+    request = relationship("RequestDB", back_populates="materials")
     agreement_material = relationship("AgreementMaterial", back_populates="request_items")
 
 

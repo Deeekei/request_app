@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Optional
 from datetime import datetime, timezone
-from backend.schemas.request_models import Request, OrderStatus, UserRole, RequestCreate, RequestUpdate
-from backend.schemas.request_models import Comment
+from backend.schemas.request_models import OrderStatus, RequestCreate, RequestUpdate, RequestRead
+from backend.schemas.request_models import CommentRead
 from backend.schemas.auth_models import User, UserRole
 from backend.routers.auth_router import get_current_user
 from backend.routers.auth_router import get_current_user, require_pto, require_director, require_customer
@@ -12,8 +12,10 @@ from backend.models.user import UserDB
 from backend.models.comment import CommentDB
 from sqlalchemy.orm import Session
 from backend.database import get_db
+from backend.schemas.material import Material
 from backend.models import UserRoleEnum, OrderStatusEnum
 from backend.repositories.request_repository import RequestRepository
+from backend.schemas.request_materials import RequestMaterialRead
 
 router = APIRouter(prefix="/requests", tags=["Заявки"])
 
@@ -38,7 +40,7 @@ def add_comment_to_request(request_id, user, comment_text: str, db: Session):
     return comment
 
 #Эндпоинты для составления заявки, получения всех заявок и отправки заявки на согласование
-@router.post("", response_model=Request, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=RequestRead, status_code=status.HTTP_201_CREATED)
 async def create_request(request_data: RequestCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != UserRoleEnum.USER and current_user.role != UserRoleEnum.ADMIN:
         raise HTTPException(status_code=403, detail="Только пользователь может создавать заявки")
@@ -50,12 +52,17 @@ async def create_request(request_data: RequestCreate, current_user: User = Depen
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ошибка при сохранении заявки"
         )
-    response_request = Request(
+    response_request = RequestRead(
         id=db_request.id,
         title=db_request.title,
         description=db_request.description,
-        agreement=db_request.agreement,
-        request_materials=db_request.request_materials,
+        agreement_id=db_request.agreement_id,
+        materials=[
+            RequestMaterialRead(
+                material_id=m.material_id,
+                quantity=m.quantity
+            ) for m in db_request.request_materials
+        ],
         author_id=db_request.author_id,
         author_name=db_request.author_name,
         status=OrderStatus(db_request.status.value),  # конвертируем строку в Enum
@@ -67,7 +74,7 @@ async def create_request(request_data: RequestCreate, current_user: User = Depen
 
     return response_request
 
-@router.get("", response_model=List[Request])
+@router.get("", response_model=List[RequestRead])
 async def get_requests(status: Optional[OrderStatusEnum] = None, user_id : Optional[int] = None, skip: int = 0,
     limit: int = 100, db: Session = Depends(get_db)):
     repo = RequestRepository(db)
@@ -79,16 +86,16 @@ async def get_requests(status: Optional[OrderStatusEnum] = None, user_id : Optio
         skip=skip,
         limit=limit
     )
-    return [Request.model_validate(req,from_attributes=True) for req in db_requests]
+    return [RequestRead.model_validate(req,from_attributes=True) for req in db_requests]
 
-@router.get("/{request_id}", response_model=Request)
+@router.get("/{request_id}", response_model=RequestRead)
 async def get_request(request_id: int, db: Session = Depends(get_db)):
     repo = RequestRepository(db)
     db_request = repo.get_request(request_id)
 
     if not db_request:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-    return  Request.model_validate(db_request, from_attributes=True)
+    return  RequestRead.model_validate(db_request, from_attributes=True)
 
 @router.post("/{request_id}/submit")
 async def submit_request(request_id: int, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -102,7 +109,7 @@ async def submit_request(request_id: int, current_user: UserDB = Depends(get_cur
         raise HTTPException(status_code=400, detail=f"Нельзя отправить заявку в статусе {request.status}")
     updated = repo.update_request_status(
         request_id,
-        new_status=OrderStatusEnum.PTO_CHECK.name,
+        new_status=OrderStatusEnum.PTO_CHECK,
         responsible_role=UserRoleEnum.PTO.name
     )
     comment_text = "Заявка отправлена ПТО генподрядчика на согласование"
@@ -121,7 +128,7 @@ async def add_comment(request_id: int, comment: CommentCreate, current_user: Use
             user=current_user,
             comment_text=comment.body
         )
-        return Comment.model_validate(new_comment, from_attributes=True)
+        return CommentRead.model_validate(new_comment, from_attributes=True)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -172,19 +179,19 @@ async def pto_check(request_id: int, approve: bool, current_user: UserDB = Depen
         comment_text = comment or "Заявка отклонена ПТО"
     updated = repo.update_request_status(
         request_id,
-        new_status=new_status.name,
+        new_status=new_status,
         responsible_role=new_responsible.name if new_responsible else None
     )
     repo.add_comment_text(request.id, current_user, comment_text)
-    return {"message": message, "request": Request.model_validate(updated, from_attributes=True)}
+    return {"message": message, "request": RequestRead.model_validate(updated, from_attributes=True)}
 
 @router.get("/pto/pending")
 async def get_pto_pending(current_user: UserDB = Depends(require_pto), db: Session = Depends(get_db)):
     repo = RequestRepository(db)
-    pending_requests = repo.get_pending_for_role(OrderStatusEnum.PTO_CHECK.name)
+    pending_requests = repo.get_all(OrderStatusEnum.CUSTOMER_CHECK)
     return {
         "count":len(pending_requests),
-        "requests": [Request.model_validate(req, from_attributes=True) for req in pending_requests]
+        "requests": [RequestRead.model_validate(req, from_attributes=True) for req in pending_requests]
     }
 
 #Эндпоинты для согласования директором ПТО и получения списка заявок
@@ -213,18 +220,18 @@ async def director_check(request_id: int,
     repo.add_comment_text(request.id, current_user, comment_text)
     updated = repo.update_request_status(
         request_id,
-        new_status=new_status.name,
+        new_status=new_status,
         responsible_role=new_responsible.name if new_responsible else None
     )
-    return {"message": message, "request": Request.model_validate(updated, from_attributes=True)}
+    return {"message": message, "request": RequestRead.model_validate(updated, from_attributes=True)}
 
 @router.get("/director/pending/")
 async def get_director_pending(current_user: UserDB = Depends(require_director), db: Session = Depends(get_db)):
     repo = RequestRepository(db)
-    pending_requests = repo.get_pending_for_role(OrderStatusEnum.DIRECTOR_CHECK.name)
+    pending_requests = repo.get_all(OrderStatusEnum.CUSTOMER_CHECK)
     return {
         "count":len(pending_requests),
-        "requests": [Request.model_validate(req, from_attributes=True) for req in pending_requests]
+        "requests": [RequestRead.model_validate(req, from_attributes=True) for req in pending_requests]
     }
 
 #Эндпоинты для согласования заявки Заказчиком и просмотр списка заявок
@@ -252,19 +259,19 @@ async def customer_check(request_id: int,
         comment_text = comment or "Заявка отклонена заказчиком"
     updated = repo.update_request_status(
         request_id,
-        new_status=new_status.name,
+        new_status=new_status,
         responsible_role=None
     )
     repo.add_comment_text(request.id, current_user, comment_text)
-    return {"message": message, "request": Request.model_validate(updated, from_attributes=True)}
+    return {"message": message, "request": RequestRead.model_validate(updated, from_attributes=True)}
 
 @router.get("/customer/pending/")
 async def get_customer_pending(current_user: UserDB = Depends(require_customer), db: Session = Depends(get_db)):
     repo = RequestRepository(db)
-    pending_requests = repo.get_pending_for_role(OrderStatusEnum.CUSTOMER_CHECK.name)
+    pending_requests = repo.get_all(OrderStatusEnum.CUSTOMER_CHECK)
     return {
         "count":len(pending_requests),
-        "requests": [Request.model_validate(req, from_attributes=True) for req in pending_requests]
+        "requests": [RequestRead.model_validate(req, from_attributes=True) for req in pending_requests]
     }
 
 #Эндпоинты для редактирования заявки
@@ -288,7 +295,7 @@ async def update_request(request_id: int, update_data:RequestUpdate, current_use
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при сохранении: {str(e)}"
         )
-    return Request.model_validate(updated, from_attributes=True)
+    return RequestRead.model_validate(updated, from_attributes=True)
 
 @router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_request(request_id: int, current_user: User = Depends(get_current_user),db: Session = Depends(get_db)):
@@ -313,7 +320,7 @@ async def delete_request(request_id: int, current_user: User = Depends(get_curre
 
 @router.post("/{request_id}/materials")
 async def add_materials(request_id: int,
-                        materials: listё,
+                        materials: list,
                         current_user: User = Depends(get_current_user),
                         db: Session = Depends(get_db)):
     repo = RequestRepository(db)

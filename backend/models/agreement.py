@@ -23,7 +23,7 @@ class Agreement(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     materials = relationship("AgreementMaterial", back_populates="agreement", cascade="all, delete-orphan")
-    requests = relationship("Request", back_populates="agreement")
+    requests = relationship("RequestDB", back_populates="agreement")
 
 
 class AgreementMaterial(Base):

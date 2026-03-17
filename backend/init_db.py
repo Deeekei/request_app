@@ -1,5 +1,9 @@
-from database import engine, Base
+from backend.database import engine, Base
 import asyncio
+from backend.models.agreement import Agreement, AgreementMaterial
+from backend.models.request import RequestDB, RequestMaterial
+from backend.models.user import UserDB
+
 
 def init_db():
     """Создание таблиц в БД"""

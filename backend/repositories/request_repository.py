@@ -8,7 +8,7 @@ from backend.models.enum import OrderStatusEnum
 from backend.models.comment import CommentDB
 from backend.models.user import UserDB
 from backend.schemas.request_models import CommentCreate
-from backend.schemas.user import User
+from backend.schemas.auth_models import User
 
 from backend.schemas.request_models import RequestCreate
 
@@ -22,12 +22,11 @@ class RequestRepository:
     # CREATE
     # ---------------------------------------------------
     def create_request(self, data: RequestCreate, user: User) -> RequestDB:
-
         with self.db.begin():
             request = RequestDB(
                 title=data.title,
                 description=data.description,
-                agreement=data.agreement,
+                agreement_id=data.agreement_id,
                 author_id=user.id,
                 author_name=user.full_name,
                 status=OrderStatusEnum.DRAFT,
@@ -89,6 +88,8 @@ class RequestRepository:
             .limit(limit)
             .all()
         )
+
+
 
     # ---------------------------------------------------
     # UPDATE
