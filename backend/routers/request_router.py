@@ -42,21 +42,9 @@ def add_comment_to_request(request_id, user, comment_text: str, db: Session):
 async def create_request(request_data: RequestCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != UserRoleEnum.USER and current_user.role != UserRoleEnum.ADMIN:
         raise HTTPException(status_code=403, detail="Только пользователь может создавать заявки")
-    request_dict = {
-        "title": request_data.title,
-        "description": request_data.description,
-        "agreement": request_data.agreement,
-        "request_materials": request_data.request_materials or [],
-        "author_id": current_user.id,
-        "author_name": current_user.full_name,
-        "status": OrderStatusEnum.DRAFT,
-        "current_responsible": None,
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc)
-    }
     repo = RequestRepository(db)
     try:
-        db_request = repo.create_request(request_dict)
+        db_request = repo.create_request(request_data, current_user)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -320,3 +308,29 @@ async def delete_request(request_id: int, current_user: User = Depends(get_curre
             detail=f"Ошибка при удалении заявки: {str(e)}"
         )
     return None
+
+#Эндпоинты для добавления материалов
+
+@router.post("/{request_id}/materials")
+async def add_materials(request_id: int,
+                        materials: listё,
+                        current_user: User = Depends(get_current_user),
+                        db: Session = Depends(get_db)):
+    repo = RequestRepository(db)
+    request = repo.get_request(request_id)
+
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    if current_user.id != request.author_id:
+        raise HTTPException(status_code=403, detail="Только автор может добавлять материалы")
+
+    if request.status != OrderStatusEnum.DRAFT:
+        raise HTTPException(status_code=400, detail="Добавлять материалы можно только в черновик")
+
+    try:
+        repo.add_materials(request_id, materials)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"message": "Материалы добавлены"}

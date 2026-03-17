@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 
 from backend.models.request import RequestDB, RequestMaterial
@@ -8,6 +8,9 @@ from backend.models.enum import OrderStatusEnum
 from backend.models.comment import CommentDB
 from backend.models.user import UserDB
 from backend.schemas.request_models import CommentCreate
+from backend.schemas.user import User
+
+from backend.schemas.request_models import RequestCreate
 
 
 class RequestRepository:
@@ -18,38 +21,31 @@ class RequestRepository:
     # ---------------------------------------------------
     # CREATE
     # ---------------------------------------------------
-    def create_request(
-        self,
-        agreement_id: int,
-        title: str,
-        description: str,
-        author_id: int,
-        author_name: str,
-        materials: list[dict]
-    ) -> RequestDB:
+    def create_request(self, data: RequestCreate, user: User) -> RequestDB:
 
         with self.db.begin():
-
             request = RequestDB(
-                agreement_id=agreement_id,
-                title=title,
-                description=description,
-                author_id=author_id,
-                author_name=author_name,
+                title=data.title,
+                description=data.description,
+                agreement=data.agreement,
+                author_id=user.id,
+                author_name=user.full_name,
                 status=OrderStatusEnum.DRAFT,
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
 
             self.db.add(request)
             self.db.flush()
 
-            for item in materials:
-                rm = RequestMaterial(
+            for m in data.request_materials:
+                material = RequestMaterial(
                     request_id=request.id,
-                    agreement_material_id=item["material_id"],
-                    quantity=item["quantity"]
+                    material_id=m.material_id,
+                    quantity=m.quantity
                 )
-                self.db.add(rm)
+
+                self.db.add(material)
 
             return request
 

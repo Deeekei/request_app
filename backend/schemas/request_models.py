@@ -38,7 +38,7 @@ class RequestBase(BaseModel):
 
 
 class RequestCreate(RequestBase):
-    request_materials: List["RequestMaterialCreate"] = Field(
+    request_materials: List["RequestMaterialCreate"] = Field(пше
         default_factory=list,
         max_length=100
     )
