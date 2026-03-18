@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
-
+from backend.repositories.agreement_material import AgreementMaterialRepository
 from backend.models.request import RequestDB, RequestMaterial
 from backend.models.enum import OrderStatusEnum
 from backend.models.comment import CommentDB
@@ -43,7 +43,6 @@ class RequestRepository:
                     material_id=m.material_id,
                     quantity=m.quantity
                 )
-
                 self.db.add(material)
 
             return request

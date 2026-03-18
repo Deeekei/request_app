@@ -16,6 +16,9 @@ from backend.schemas.material import Material
 from backend.models import UserRoleEnum, OrderStatusEnum
 from backend.repositories.request_repository import RequestRepository
 from backend.schemas.request_materials import RequestMaterialRead
+from urllib3 import request
+
+from backend.repositories.agreement_material import AgreementMaterialRepository
 
 router = APIRouter(prefix="/requests", tags=["Заявки"])
 
@@ -38,6 +41,22 @@ def add_comment_to_request(request_id, user, comment_text: str, db: Session):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении комментария {str(e)}")
     return comment
+
+def reserve_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session = Depends(get_db)):
+    repo = AgreementMaterialRepository(db)
+    for m in request.request_materials:
+        repo.reserve(m.material_id, m.quantity)
+
+def unreserve_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session = Depends(get_db)):
+    repo = AgreementMaterialRepository(db)
+    for m in request.request_materials:
+        repo.unreserve(m.material_id, m.quantity)
+
+def spend_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session = Depends(get_db)):
+    repo = AgreementMaterialRepository(db)
+    for m in request.request_materials:
+        repo.spend(m.material_id, m.quantity)
+
 
 #Эндпоинты для составления заявки, получения всех заявок и отправки заявки на согласование
 @router.post("", response_model=RequestRead, status_code=status.HTTP_201_CREATED)
@@ -114,6 +133,7 @@ async def submit_request(request_id: int, current_user: UserDB = Depends(get_cur
     )
     comment_text = "Заявка отправлена ПТО генподрядчика на согласование"
     repo.add_comment_text(request.id, current_user, comment_text)
+    reserve_all_materials(request.request_materials, request)
     return {"message": "Заявка отправлена ПТО генподрядчика на согласование", "request": updated}
 
 @router.post("/{request_id}/comments")
@@ -162,6 +182,7 @@ async def get_request_history(request_id: int, db: Session = Depends(get_db)):
 async def pto_check(request_id: int, approve: bool, current_user: UserDB = Depends(require_pto), comment: Optional[str] = None, db: Session = Depends(get_db)):
     repo = RequestRepository(db)
     request = repo.get_request(request_id)
+    materials_repo = AgreementMaterialRepository(db)
     if not request:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
     if request.status != OrderStatusEnum.PTO_CHECK:
@@ -177,6 +198,7 @@ async def pto_check(request_id: int, approve: bool, current_user: UserDB = Depen
         new_responsible = None
         message = "Заявка отклонена ПТО"
         comment_text = comment or "Заявка отклонена ПТО"
+        unreserve_all_materials(request.request_materials, request)
     updated = repo.update_request_status(
         request_id,
         new_status=new_status,
@@ -217,6 +239,7 @@ async def director_check(request_id: int,
         new_responsible = None
         message = "Заявка отклонена директором ПТО"
         comment_text = comment or "Заявка отклонена директором ПТО"
+        unreserve_all_materials(request.request_materials, request)
     repo.add_comment_text(request.id, current_user, comment_text)
     updated = repo.update_request_status(
         request_id,
@@ -252,6 +275,7 @@ async def customer_check(request_id: int,
         new_responsible = None
         message = "Заявка утверждена заказчиком"
         comment_text = comment or "Заявка утверждена заказчиком"
+        spend_all_materials(request.request_materials, request)
     else:
         new_status = OrderStatusEnum.REJECTED
         new_responsible = None
@@ -262,6 +286,7 @@ async def customer_check(request_id: int,
         new_status=new_status,
         responsible_role=None
     )
+    unreserve_all_materials(request.request_materials, request)
     repo.add_comment_text(request.id, current_user, comment_text)
     return {"message": message, "request": RequestRead.model_validate(updated, from_attributes=True)}
 
