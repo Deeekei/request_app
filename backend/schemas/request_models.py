@@ -34,7 +34,9 @@ class CommentRead(CommentBase):
 class RequestBase(BaseModel):
     title: str = Field(..., min_length=3, max_length=100)
     description: str = Field(..., min_length=10)
-    agreement_id: int
+    agreement: str = Field(..., min_length=3, max_length=100)
+    object: str = Field(..., min_length=3, max_length=100)
+
 
 
 class RequestCreate(RequestBase):

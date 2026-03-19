@@ -17,6 +17,7 @@ from backend.models import UserRoleEnum, OrderStatusEnum
 from backend.repositories.request_repository import RequestRepository
 from backend.schemas.request_materials import RequestMaterialRead
 from urllib3 import request
+import traceback
 
 from backend.repositories.agreement_material import AgreementMaterialRepository
 
@@ -42,20 +43,41 @@ def add_comment_to_request(request_id, user, comment_text: str, db: Session):
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении комментария {str(e)}")
     return comment
 
-def reserve_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session = Depends(get_db)):
+def reserve_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session):
     repo = AgreementMaterialRepository(db)
-    for m in request.request_materials:
-        repo.reserve(m.material_id, m.quantity)
+    try:
+        for m in materials:
+            repo.reserve(m.agreement_material_id, m.quantity)
 
-def unreserve_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session = Depends(get_db)):
-    repo = AgreementMaterialRepository(db)
-    for m in request.request_materials:
-        repo.unreserve(m.material_id, m.quantity)
+        db.commit()
 
-def spend_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session = Depends(get_db)):
+    except Exception:
+        db.rollback()
+        raise
+
+def unreserve_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session):
     repo = AgreementMaterialRepository(db)
-    for m in request.request_materials:
-        repo.spend(m.material_id, m.quantity)
+    try:
+        for m in materials:
+            repo.unreserve(m.agreement_material_id, m.quantity)
+
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
+
+def spend_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session):
+    repo = AgreementMaterialRepository(db)
+    try:
+        for m in materials:
+            repo.spend(m.agreement_material_id, m.quantity)
+
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
 
 
 #Эндпоинты для составления заявки, получения всех заявок и отправки заявки на согласование
@@ -67,6 +89,7 @@ async def create_request(request_data: RequestCreate, current_user: User = Depen
     try:
         db_request = repo.create_request(request_data, current_user)
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ошибка при сохранении заявки"
@@ -75,12 +98,20 @@ async def create_request(request_data: RequestCreate, current_user: User = Depen
         id=db_request.id,
         title=db_request.title,
         description=db_request.description,
-        agreement_id=db_request.agreement_id,
+        agreement=db_request.agreement,
+        object=db_request.object,
         materials=[
-            RequestMaterialRead(
-                material_id=m.material_id,
-                quantity=m.quantity
-            ) for m in db_request.request_materials
+            RequestMaterialRead.model_validate({
+                "agreement_material_id": m.agreement_material_id,
+                "id": m.id,
+                "request_id": m.request_id,
+                "quantity": m.quantity,
+                "approved_quantity": m.approved_quantity,
+                "material_name": m.agreement_material.name,
+                "material_unit": m.agreement_material.unit,
+                "created_at": m.created_at
+            })
+            for m in db_request.materials
         ],
         author_id=db_request.author_id,
         author_name=db_request.author_name,
@@ -105,16 +136,76 @@ async def get_requests(status: Optional[OrderStatusEnum] = None, user_id : Optio
         skip=skip,
         limit=limit
     )
-    return [RequestRead.model_validate(req,from_attributes=True) for req in db_requests]
+    response_requests = []
+    for req in db_requests:
+        materials = [
+            RequestMaterialRead.model_validate({
+                "agreement_material_id": m.agreement_material_id,
+                "id": m.id,
+                "request_id": m.request_id,
+                "quantity": m.quantity,
+                "approved_quantity": m.approved_quantity,
+                "material_name": m.agreement_material.name,
+                "material_unit": m.agreement_material.unit,
+                "created_at": m.created_at
+            })
+            for m in req.materials
+        ]
+
+        request_read = RequestRead.model_validate({
+            "id": req.id,
+            "title": req.title,
+            "description": req.description,
+            "object": req.object,
+            "agreement": req.agreement,
+            "status": req.status,
+            "author_id": req.author_id,
+            "author_name": req.author_name,
+            "current_responsible": req.current_responsible,
+            "created_at": req.created_at,
+            "updated_at": req.updated_at,
+            "materials": materials  # ← ВОТ ТУТ правильно
+        })
+        response_requests.append(request_read)
+    return response_requests
 
 @router.get("/{request_id}", response_model=RequestRead)
 async def get_request(request_id: int, db: Session = Depends(get_db)):
     repo = RequestRepository(db)
-    db_request = repo.get_request(request_id)
-
-    if not db_request:
+    req = repo.get_request(request_id)
+    if not req:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-    return  RequestRead.model_validate(db_request, from_attributes=True)
+    materials = [
+        RequestMaterialRead.model_validate({
+            "agreement_material_id": m.agreement_material_id,
+            "id": m.id,
+            "request_id": m.request_id,
+            "quantity": m.quantity,
+            "approved_quantity": m.approved_quantity,
+            "material_name": m.agreement_material.name,
+            "material_unit": m.agreement_material.unit,
+            "created_at": m.created_at
+        })
+        for m in req.materials
+    ]
+
+    request_read = RequestRead.model_validate({
+        "id": req.id,
+        "title": req.title,
+        "description": req.description,
+        "object": req.object,
+        "agreement": req.agreement,
+        "status": req.status,
+        "author_id": req.author_id,
+        "author_name": req.author_name,
+        "current_responsible": req.current_responsible,
+        "created_at": req.created_at,
+        "updated_at": req.updated_at,
+        "materials": materials  # ← ВОТ ТУТ правильно
+    })
+    if not req:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+    return  request_read
 
 @router.post("/{request_id}/submit")
 async def submit_request(request_id: int, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -133,7 +224,7 @@ async def submit_request(request_id: int, current_user: UserDB = Depends(get_cur
     )
     comment_text = "Заявка отправлена ПТО генподрядчика на согласование"
     repo.add_comment_text(request.id, current_user, comment_text)
-    reserve_all_materials(request.request_materials, request)
+    reserve_all_materials(request.materials, request, db)
     return {"message": "Заявка отправлена ПТО генподрядчика на согласование", "request": updated}
 
 @router.post("/{request_id}/comments")
@@ -198,7 +289,7 @@ async def pto_check(request_id: int, approve: bool, current_user: UserDB = Depen
         new_responsible = None
         message = "Заявка отклонена ПТО"
         comment_text = comment or "Заявка отклонена ПТО"
-        unreserve_all_materials(request.request_materials, request)
+        unreserve_all_materials(request.materials, request, db)
     updated = repo.update_request_status(
         request_id,
         new_status=new_status,
@@ -239,7 +330,7 @@ async def director_check(request_id: int,
         new_responsible = None
         message = "Заявка отклонена директором ПТО"
         comment_text = comment or "Заявка отклонена директором ПТО"
-        unreserve_all_materials(request.request_materials, request)
+        unreserve_all_materials(request.materials, request, db)
     repo.add_comment_text(request.id, current_user, comment_text)
     updated = repo.update_request_status(
         request_id,
@@ -275,7 +366,7 @@ async def customer_check(request_id: int,
         new_responsible = None
         message = "Заявка утверждена заказчиком"
         comment_text = comment or "Заявка утверждена заказчиком"
-        spend_all_materials(request.request_materials, request)
+        spend_all_materials(request.materials, request, db)
     else:
         new_status = OrderStatusEnum.REJECTED
         new_responsible = None
@@ -286,7 +377,7 @@ async def customer_check(request_id: int,
         new_status=new_status,
         responsible_role=None
     )
-    unreserve_all_materials(request.request_materials, request)
+    unreserve_all_materials(request.materials, request, db)
     repo.add_comment_text(request.id, current_user, comment_text)
     return {"message": message, "request": RequestRead.model_validate(updated, from_attributes=True)}
 

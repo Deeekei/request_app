@@ -20,16 +20,11 @@ class AgreementMaterialRepository:
 
     def reserve(self, material_id: int, quantity: float):
         try:
-            with self.db.begin():
+            material = self.get_for_update(material_id)
 
-                material = self.get_for_update(material_id)
-
-                if material.available_quantity < quantity:
-                    raise ValueError("Недостаточно доступного количества")
-
-                material.reserved_quantity += quantity
-
-                return material
+            material.reserved_quantity = (material.reserved_quantity or 0) + quantity
+            material.overdraft = material.available_quantity < 0
+            return material
 
         except SQLAlchemyError:
             self.db.rollback()
@@ -37,16 +32,15 @@ class AgreementMaterialRepository:
 
     def unreserve(self, material_id: int, quantity: float):
         try:
-            with self.db.begin():
+            material = self.get_for_update(material_id)
 
-                material = self.get_for_update(material_id)
+            if (material.reserved_quantity or 0) < quantity:
+                raise ValueError("Невозможно снять резерв")
 
-                if material.reserved_quantity < quantity:
-                    raise ValueError("Невозможно снять резерв")
+            material.reserved_quantity -= quantity
+            material.overdraft = material.available_quantity < 0
 
-                material.reserved_quantity -= quantity
-
-                return material
+            return material
 
         except SQLAlchemyError:
             self.db.rollback()
@@ -54,17 +48,18 @@ class AgreementMaterialRepository:
 
     def spend(self, material_id: int, quantity: float):
         try:
-            with self.db.begin():
+            material = self.get_for_update(material_id)
 
-                material = self.get_for_update(material_id)
+            if (material.reserved_quantity or 0) < quantity:
+                raise ValueError("Недостаточно зарезервированного количества")
 
-                if material.reserved_quantity < quantity:
-                    raise ValueError("Недостаточно зарезервированного количества")
+            material.reserved_quantity -= quantity
+            material.spent_quantity = (material.spent_quantity or 0) + quantity
 
-                material.reserved_quantity -= quantity
-                material.spent_quantity += quantity
+            material.overdraft = material.available_quantity < 0
 
-                return material
+
+            return material
 
         except SQLAlchemyError:
             self.db.rollback()

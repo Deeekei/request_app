@@ -6,7 +6,7 @@ from backend.schemas.request_models import OrderStatus
 
 
 class RequestMaterialBase(BaseModel):
-    material_id: int
+    agreement_material_id: int
     quantity: float = Field(..., gt=0)
 
 

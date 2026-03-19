@@ -1,7 +1,10 @@
-from sqlalchemy import Column, Integer,Float, String, DateTime, ForeignKey, Enum as SqlEnum
+from pyasn1.type.univ import Boolean
+from sqlalchemy import Column, Integer,Float,Boolean, String, DateTime, ForeignKey, Enum as SqlEnum
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base
+from backend.models.enum import ObjectsEnum
 import enum
 
 
@@ -22,27 +25,25 @@ class Agreement(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    materials = relationship("AgreementMaterial", back_populates="agreement", cascade="all, delete-orphan")
-    requests = relationship("RequestDB", back_populates="agreement")
 
 
 class AgreementMaterial(Base):
     __tablename__ = "agreement_materials"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    agreement_id = Column(Integer, ForeignKey("agreements.id", ondelete="CASCADE"), nullable=False)
+    object = Column(SqlEnum(ObjectsEnum), nullable=False)
     name = Column(String, nullable=False, index=True)
     unit = Column(String, nullable=False)
     total_quantity = Column(Float, nullable=False)
     reserved_quantity = Column(Float, default=0.0)
     spent_quantity = Column(Float, default=0.0)
     notes = Column(String, nullable=True)
+    overdraft = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    agreement = relationship("Agreement", back_populates="materials")
     request_items = relationship("RequestMaterial", back_populates="agreement_material")
 
-    @property
-    def available_quantity(self) -> Float:
+    @hybrid_property
+    def available_quantity(self) -> float:
         """Доступное количество (не зарезервировано и не потрачено)"""
         return self.total_quantity - self.reserved_quantity - self.spent_quantity
 

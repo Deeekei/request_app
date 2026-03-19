@@ -14,3 +14,8 @@ class UserRoleEnum(enum.Enum):
     DIRECTOR = "директор"
     CUSTOMER = "заказчик"
     ADMIN = "администратор"
+
+class ObjectsEnum(enum.Enum):
+    AURIKA = "аурика"
+    AURUM = "аурум"
+    MAXIMUS = "максимус"

@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, Float, String, DateTime, Enum, JSON, For
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base
-from backend.models.enum import OrderStatusEnum, UserRoleEnum
+from backend.models.enum import OrderStatusEnum, UserRoleEnum, ObjectsEnum
 from backend.models.agreement import AgreementMaterial
 
 
@@ -29,9 +29,8 @@ class RequestDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)  # title
     description = Column(String, nullable=False)
-    agreement_id = Column(Integer, ForeignKey("agreements.id"), nullable=False)  # agreement
-    request_materials = Column(JSON, default=list)  # request_materials
-
+    agreement = Column(String, nullable=False)  # agreement
+    object = Column(Enum(ObjectsEnum), nullable=False)
     status = Column(Enum(OrderStatusEnum), nullable=False, default=OrderStatusEnum.DRAFT)
     current_responsible = Column(Enum(UserRoleEnum), nullable=True)
 
@@ -44,5 +43,4 @@ class RequestDB(Base):
     # Связи (строковые названия классов)
     author = relationship("UserDB", back_populates="requests_created")
     comments = relationship("CommentDB", back_populates="request", cascade="all, delete-orphan")
-    agreement = relationship("Agreement", back_populates="requests")
     materials = relationship("RequestMaterial", back_populates="request", cascade="all, delete-orphan")

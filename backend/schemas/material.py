@@ -12,6 +12,11 @@ class UnitEnum(str, Enum):
     M3 = "м³"
     L = "л"
 
+class ObjectEnum(str, Enum):
+    AURIKA = "аурика"
+    AURUM = "аурум"
+    MAXIMUS = "максимус"
+
 
 class MaterialBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
@@ -24,7 +29,7 @@ class MaterialCreate(MaterialBase):
 
 class Material(MaterialBase):
     id: int
-    agreement_id: int
+    object: ObjectEnum
     reserved_quantity: float
     spent_quantity: float
     available_quantity: float
