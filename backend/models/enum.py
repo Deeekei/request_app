@@ -9,13 +9,14 @@ class OrderStatusEnum(enum.Enum):
     REJECTED = "отклонено"
 
 class UserRoleEnum(enum.Enum):
-    USER = "пользователь"
+    USER = "Пользователь"
     PTO = "ПТО"
-    DIRECTOR = "директор"
-    CUSTOMER = "заказчик"
-    ADMIN = "администратор"
+    DIRECTOR = "Директор"
+    CUSTOMER = "Заказчик"
+    ADMIN = "Администратор"
+    EXECUTOR = "Снабжение"
 
 class ObjectsEnum(enum.Enum):
-    AURIKA = "аурика"
-    AURUM = "аурум"
-    MAXIMUS = "максимус"
+    AURIKA = 'ЖК "Аурика"'
+    AURUM = 'ЖК "Аурум"'
+    MAXIMUS = 'ЖК "Максимус"'

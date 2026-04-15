@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
@@ -14,7 +14,8 @@ engine = create_engine(
     DATABASE_URL,
     pool_size=5,  # количество соединений в пуле
     max_overflow=10,  # максимум дополнительных соединений
-    echo=True  # выводить SQL запросы в консоль (полезно для отладки)
+    echo=True,
+    pool_pre_ping=True# выводить SQL запросы в консоль (полезно для отладки)
 )
 
 # Базовый класс для моделей

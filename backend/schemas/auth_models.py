@@ -4,13 +4,13 @@ from enum import Enum
 from datetime import datetime
 
 class UserRole(str, Enum):
-    USER = "пользователь"
-    CUSTOMER = "заказчик"
+    USER = "Пользователь"
+    CUSTOMER = "Заказчик"
     PTO = "ПТО"
-    DIRECTOR = "директор"
-    EXECUTOR = "исполнитель"
+    DIRECTOR = "Директор"
+    EXECUTOR = "Снабжение"
     WATCHER = "наблюдатель"
-    ADMIN = "администратор"
+    ADMIN = "Администратор"
 
 class User(BaseModel):
     id: int

@@ -63,7 +63,7 @@ async def register(
     try:
         db_user = repo.create_user(
             user_data=user_data,
-            role=UserRoleEnum.USER.name
+            role=UserRoleEnum.USER
         )
     except Exception as e:
         raise HTTPException(
@@ -138,4 +138,11 @@ async def require_admin(
 ):
     if current_user.role != UserRoleEnum.ADMIN:
         raise HTTPException(403, "Требуется роль администратора")
+    return current_user
+
+async def require_executor(
+        current_user: UserDB = Depends(get_current_user)
+):
+    if current_user.role not in [UserRoleEnum.EXECUTOR, UserRoleEnum.ADMIN]:
+        raise HTTPException(403, detail="Требуется роль снабжение")
     return current_user

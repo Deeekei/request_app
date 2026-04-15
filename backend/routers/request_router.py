@@ -1,71 +1,76 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Optional
-from datetime import datetime, timezone
-from backend.schemas.request_models import OrderStatus, RequestCreate, RequestUpdate, RequestRead
+
+from multipart import file_path
+
+from backend.schemas.request_models import RequestCreate, RequestUpdate, RequestRead
 from backend.schemas.request_models import CommentRead
-from backend.schemas.auth_models import User, UserRole
-from backend.routers.auth_router import get_current_user
 from backend.routers.auth_router import get_current_user, require_pto, require_director, require_customer
 from backend.schemas.request_models import CommentCreate
 from backend.models.request import RequestDB
 from backend.models.user import UserDB
-from backend.models.comment import CommentDB
 from sqlalchemy.orm import Session
 from backend.database import get_db
-from backend.schemas.material import Material
-from backend.models import UserRoleEnum, OrderStatusEnum
+from backend.models.enum import OrderStatusEnum
 from backend.repositories.request_repository import RequestRepository
-from backend.schemas.request_materials import RequestMaterialRead
-from urllib3 import request
-import traceback
-
+from backend.schemas.request_materials import RequestMaterialRead, MaterialRead
+from backend.services.request_service import RequestService
+from fastapi.responses import FileResponse
+from backend.services.document_service import generate_request_excel
 from backend.repositories.agreement_material import AgreementMaterialRepository
+from backend.schemas.material import ObjectEnum
+from backend.routers.auth_router import require_executor
 
 router = APIRouter(prefix="/requests", tags=["Заявки"])
 
-def add_comment_to_request(request_id, user, comment_text: str, db: Session):
-    request = db.query(RequestDB).filter(RequestDB.id == request_id).first()
-    if not request:
-        raise ValueError(f"Заявка с ID {request_id} не найдена")
-    comment = CommentDB(
-        user_id=user.id,
-        user_name=user.full_name,
-        body=comment_text,
-        request_id=request_id
+
+def to_request_read(req) -> RequestRead:
+    materials = [
+        RequestMaterialRead.model_validate(
+            {
+                "agreement_material_id": m.agreement_material_id,
+                "id": m.id,
+                "request_id": m.request_id,
+                "quantity": m.quantity,
+                "overdraft": m.overdraft,
+                "material_name": m.agreement_material.name if m.agreement_material else None,
+                "material_unit": m.agreement_material.unit if m.agreement_material else None,
+                "created_at": m.created_at,
+            }
+        )
+        for m in req.materials
+    ]
+
+    comments = [
+        CommentRead.model_validate(
+            {
+                "id": c.id,
+                "user_id": c.user_id,
+                "user_name": c.user_name,
+                "body": c.body,
+                "created_at": c.created_at,
+            }
+        )
+        for c in req.comments
+    ]
+
+    return RequestRead.model_validate(
+        {
+            "id": req.id,
+            "title": req.title,
+            "description": req.description,
+            "object": req.object,
+            "agreement": req.agreement,
+            "status": req.status,
+            "author_id": req.author_id,
+            "author_name": req.author_name,
+            "current_responsible": req.current_responsible,
+            "created_at": req.created_at,
+            "updated_at": req.updated_at,
+            "materials": materials,
+            "comments": comments,
+        }
     )
-    request.updated_at = datetime.now(timezone.utc)
-    try:
-        db.add(comment)
-        db.commit()
-        db.refresh(comment)
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении комментария {str(e)}")
-    return comment
-
-def reserve_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session):
-    repo = AgreementMaterialRepository(db)
-    try:
-        for m in materials:
-            repo.reserve(m.agreement_material_id, m.quantity)
-
-        db.commit()
-
-    except Exception:
-        db.rollback()
-        raise
-
-def unreserve_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session):
-    repo = AgreementMaterialRepository(db)
-    try:
-        for m in materials:
-            repo.unreserve(m.agreement_material_id, m.quantity)
-
-        db.commit()
-
-    except Exception:
-        db.rollback()
-        raise
 
 def spend_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session):
     repo = AgreementMaterialRepository(db)
@@ -82,174 +87,103 @@ def spend_all_materials(materials: List[RequestMaterialRead], request: RequestDB
 
 #Эндпоинты для составления заявки, получения всех заявок и отправки заявки на согласование
 @router.post("", response_model=RequestRead, status_code=status.HTTP_201_CREATED)
-async def create_request(request_data: RequestCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if current_user.role != UserRoleEnum.USER and current_user.role != UserRoleEnum.ADMIN:
-        raise HTTPException(status_code=403, detail="Только пользователь может создавать заявки")
-    repo = RequestRepository(db)
+async def create_request(request_data: RequestCreate, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+    service = RequestService(db)
     try:
-        db_request = repo.create_request(request_data, current_user)
+        request = service.create_draft(request_data, current_user)
+        return to_request_read(request)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
+        import traceback
+        print("\n=== ERROR IN POST /requests ===")
         traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка при сохранении заявки"
-        )
-    response_request = RequestRead(
-        id=db_request.id,
-        title=db_request.title,
-        description=db_request.description,
-        agreement=db_request.agreement,
-        object=db_request.object,
-        materials=[
-            RequestMaterialRead.model_validate({
-                "agreement_material_id": m.agreement_material_id,
-                "id": m.id,
-                "request_id": m.request_id,
-                "quantity": m.quantity,
-                "approved_quantity": m.approved_quantity,
-                "material_name": m.agreement_material.name,
-                "material_unit": m.agreement_material.unit,
-                "created_at": m.created_at
-            })
-            for m in db_request.materials
-        ],
-        author_id=db_request.author_id,
-        author_name=db_request.author_name,
-        status=OrderStatus(db_request.status.value),  # конвертируем строку в Enum
-        current_responsible=None,
-        comments=[],  # новые заявки без комментариев
-        created_at=db_request.created_at,
-        updated_at=db_request.updated_at
-    )
-
-    return response_request
+        print("Exception repr:", repr(e))
+        raise
 
 @router.get("", response_model=List[RequestRead])
-async def get_requests(status: Optional[OrderStatusEnum] = None, user_id : Optional[int] = None, skip: int = 0,
-    limit: int = 100, db: Session = Depends(get_db)):
+async def get_requests(
+    status: Optional[OrderStatusEnum] = None,
+    user_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
     repo = RequestRepository(db)
-
-    status_str = status.name if status else None
-    db_requests = repo.get_all(
-        status=status_str,
+    requests = repo.list_requests(
+        status=status,
         author_id=user_id,
         skip=skip,
-        limit=limit
+        limit=limit,
     )
-    response_requests = []
-    for req in db_requests:
-        materials = [
-            RequestMaterialRead.model_validate({
-                "agreement_material_id": m.agreement_material_id,
-                "id": m.id,
-                "request_id": m.request_id,
-                "quantity": m.quantity,
-                "approved_quantity": m.approved_quantity,
-                "material_name": m.agreement_material.name,
-                "material_unit": m.agreement_material.unit,
-                "created_at": m.created_at
-            })
-            for m in req.materials
-        ]
-
-        request_read = RequestRead.model_validate({
-            "id": req.id,
-            "title": req.title,
-            "description": req.description,
-            "object": req.object,
-            "agreement": req.agreement,
-            "status": req.status,
-            "author_id": req.author_id,
-            "author_name": req.author_name,
-            "current_responsible": req.current_responsible,
-            "created_at": req.created_at,
-            "updated_at": req.updated_at,
-            "materials": materials  # ← ВОТ ТУТ правильно
-        })
-        response_requests.append(request_read)
-    return response_requests
+    return [to_request_read(r) for r in requests]
 
 @router.get("/{request_id}", response_model=RequestRead)
-async def get_request(request_id: int, db: Session = Depends(get_db)):
+async def get_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+):
     repo = RequestRepository(db)
-    req = repo.get_request(request_id)
-    if not req:
+    request = repo.get_by_id(request_id)
+    if not request:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-    materials = [
-        RequestMaterialRead.model_validate({
-            "agreement_material_id": m.agreement_material_id,
-            "id": m.id,
-            "request_id": m.request_id,
-            "quantity": m.quantity,
-            "approved_quantity": m.approved_quantity,
-            "material_name": m.agreement_material.name,
-            "material_unit": m.agreement_material.unit,
-            "created_at": m.created_at
-        })
-        for m in req.materials
-    ]
-
-    request_read = RequestRead.model_validate({
-        "id": req.id,
-        "title": req.title,
-        "description": req.description,
-        "object": req.object,
-        "agreement": req.agreement,
-        "status": req.status,
-        "author_id": req.author_id,
-        "author_name": req.author_name,
-        "current_responsible": req.current_responsible,
-        "created_at": req.created_at,
-        "updated_at": req.updated_at,
-        "materials": materials  # ← ВОТ ТУТ правильно
-    })
-    if not req:
-        raise HTTPException(status_code=404, detail="Заявка не найдена")
-    return  request_read
+    return to_request_read(request)
 
 @router.post("/{request_id}/submit")
-async def submit_request(request_id: int, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
-    repo = RequestRepository(db)
-    request = repo.get_request(request_id)
-    if not request:
-        raise HTTPException(status_code=404, detail="Заявка не найдена")
-    if current_user.id != request.author_id:
-        raise HTTPException(status_code=403, detail="Только автор может изменять заявку")
-    if request.status != OrderStatusEnum.DRAFT:
-        raise HTTPException(status_code=400, detail=f"Нельзя отправить заявку в статусе {request.status}")
-    updated = repo.update_request_status(
-        request_id,
-        new_status=OrderStatusEnum.PTO_CHECK,
-        responsible_role=UserRoleEnum.PTO.name
-    )
-    comment_text = "Заявка отправлена ПТО генподрядчика на согласование"
-    repo.add_comment_text(request.id, current_user, comment_text)
-    reserve_all_materials(request.materials, request, db)
-    return {"message": "Заявка отправлена ПТО генподрядчика на согласование", "request": updated}
+async def submit_request(
+    request_id: int,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = RequestService(db)
+    try:
+        updated = service.submit(request_id, current_user)
+        return to_request_read(updated)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Ошибка при отправке заявки")
+
 
 @router.post("/{request_id}/comments")
-async def add_comment(request_id: int, comment: CommentCreate, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+async def add_comment(
+    request_id: int,
+    comment: CommentCreate,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     repo = RequestRepository(db)
-    request = repo.get_request(request_id)
+    request = repo.get_by_id(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
+
     try:
-        new_comment = repo.add_comment_text(
-            request_id=request_id,
-            user=current_user,
-            comment_text=comment.body
+        new_comment = repo.add_comment(
+            request=request,
+            user_id=current_user.id,
+            user_name=current_user.full_name,
+            body=comment.body,
         )
+        db.commit()
+        db.refresh(new_comment)
         return CommentRead.model_validate(new_comment, from_attributes=True)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Ошибка при добавлении комментария")
+
 
 @router.get("/{request_id}/history")
-async def get_request_history(request_id: int, db: Session = Depends(get_db)):
-    """Получение истории комментариев заявки"""
+async def get_request_history(
+    request_id: int,
+    db: Session = Depends(get_db),
+):
     repo = RequestRepository(db)
-    request = repo.get_request(request_id)
+    request = repo.get_by_id(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
+
     comments = repo.get_comments(request_id)
     return {
         "request_id": request_id,
@@ -261,199 +195,156 @@ async def get_request_history(request_id: int, db: Session = Depends(get_db)):
                 "user_id": c.user_id,
                 "user_name": c.user_name,
                 "body": c.body,
-                "created_at": c.created_at.isoformat() if c.created_at else None
+                "created_at": c.created_at.isoformat() if c.created_at else None,
             }
             for c in comments
-        ]
+        ],
     }
 
 #Эндпоинты для согласования завки ПТО генподрядчика и получения списка заявок на согласовании
 
 @router.post("/{request_id}/pto_check")
-async def pto_check(request_id: int, approve: bool, current_user: UserDB = Depends(require_pto), comment: Optional[str] = None, db: Session = Depends(get_db)):
-    repo = RequestRepository(db)
-    request = repo.get_request(request_id)
-    materials_repo = AgreementMaterialRepository(db)
-    if not request:
-        raise HTTPException(status_code=404, detail="Заявка не найдена")
-    if request.status != OrderStatusEnum.PTO_CHECK:
-        raise HTTPException(status_code=400,
-                            detail=f"Заявка не на проверке ПТО (текущий статус:{request.status})")
-    if approve:
-        new_status = OrderStatusEnum.DIRECTOR_CHECK
-        new_responsible = UserRoleEnum.DIRECTOR
-        message = "Заявка одобрена ПТО Генподрядчика и направлена Директору Генподрядчика"
-        comment_text = comment or "Заявка одобрена ПТО"
-    else:
-        new_status = OrderStatusEnum.REJECTED
-        new_responsible = None
-        message = "Заявка отклонена ПТО"
-        comment_text = comment or "Заявка отклонена ПТО"
-        unreserve_all_materials(request.materials, request, db)
-    updated = repo.update_request_status(
-        request_id,
-        new_status=new_status,
-        responsible_role=new_responsible.name if new_responsible else None
-    )
-    repo.add_comment_text(request.id, current_user, comment_text)
-    return {"message": message, "request": RequestRead.model_validate(updated, from_attributes=True)}
+async def pto_check(
+    request_id: int,
+    approve: bool,
+    comment: Optional[str] = None,
+    current_user: UserDB = Depends(require_pto),
+    db: Session = Depends(get_db),
+):
+    service = RequestService(db)
+    try:
+        updated = service.pto_review(request_id, approve, current_user, comment)
+        return to_request_read(updated)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Ошибка при согласовании ПТО")
+
 
 @router.get("/pto/pending")
 async def get_pto_pending(current_user: UserDB = Depends(require_pto), db: Session = Depends(get_db)):
     repo = RequestRepository(db)
-    pending_requests = repo.get_all(OrderStatusEnum.CUSTOMER_CHECK)
+    pending_requests = repo.list_requests(OrderStatusEnum.PTO_CHECK)
     return {
         "count":len(pending_requests),
-        "requests": [RequestRead.model_validate(req, from_attributes=True) for req in pending_requests]
+        "requests": [to_request_read(req) for req in pending_requests]
     }
 
 #Эндпоинты для согласования директором ПТО и получения списка заявок
 
 @router.post("/{request_id}/director_check")
-async def director_check(request_id: int,
-                         approve: bool,
-                        current_user: UserDB = Depends(require_director),
-                         comment: Optional[str] = None, db: Session = Depends(get_db)):
-    repo = RequestRepository(db)
-    request = repo.get_request(request_id)
-    if not request:
-        raise HTTPException(status_code=404, detail="Заявка не найдена")
-    if request.status != OrderStatusEnum.DIRECTOR_CHECK:
-        raise HTTPException(status_code=400, detail=f"Заявка не на утверждении деректором ПТО, текуший статус{request.status}")
-    if approve:
-        new_status = OrderStatusEnum.CUSTOMER_CHECK
-        new_responsible = UserRoleEnum.CUSTOMER
-        message = "Заявка утверждена директором ПТО"
-        comment_text = comment or "Заявка утверждена директором ПТО"
-    else:
-        new_status = OrderStatusEnum.REJECTED
-        new_responsible = None
-        message = "Заявка отклонена директором ПТО"
-        comment_text = comment or "Заявка отклонена директором ПТО"
-        unreserve_all_materials(request.materials, request, db)
-    repo.add_comment_text(request.id, current_user, comment_text)
-    updated = repo.update_request_status(
-        request_id,
-        new_status=new_status,
-        responsible_role=new_responsible.name if new_responsible else None
-    )
-    return {"message": message, "request": RequestRead.model_validate(updated, from_attributes=True)}
+async def director_check(
+    request_id: int,
+    approve: bool,
+    comment: Optional[str] = None,
+    current_user: UserDB = Depends(require_director),
+    db: Session = Depends(get_db),
+):
+    service = RequestService(db)
+    try:
+        updated = service.director_review(request_id, approve, current_user, comment)
+        return to_request_read(updated)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Ошибка при согласовании директором")
 
 @router.get("/director/pending/")
 async def get_director_pending(current_user: UserDB = Depends(require_director), db: Session = Depends(get_db)):
     repo = RequestRepository(db)
-    pending_requests = repo.get_all(OrderStatusEnum.CUSTOMER_CHECK)
+    pending_requests = repo.list_requests(OrderStatusEnum.DIRECTOR_CHECK)
     return {
         "count":len(pending_requests),
-        "requests": [RequestRead.model_validate(req, from_attributes=True) for req in pending_requests]
+        "requests": [to_request_read(req) for req in pending_requests]
     }
 
 #Эндпоинты для согласования заявки Заказчиком и просмотр списка заявок
 
 @router.post("/{request_id}/customer_check")
-async def customer_check(request_id: int,
-                         approve: bool,
-                        current_user: UserDB = Depends(require_customer),
-                         comment: Optional[str] = None, db: Session = Depends(get_db)):
-    repo = RequestRepository(db)
-    request = repo.get_request(request_id)
-    if not request:
-        raise HTTPException(status_code=404, detail="Заявка не найдена")
-    if request.status != OrderStatusEnum.CUSTOMER_CHECK:
-        raise HTTPException(status_code=400, detail=f"Заявка не на утверждении заказчиком, текуший статус{request.status}")
-    if approve:
-        new_status = OrderStatusEnum.APPROVED
-        new_responsible = None
-        message = "Заявка утверждена заказчиком"
-        comment_text = comment or "Заявка утверждена заказчиком"
-        spend_all_materials(request.materials, request, db)
-    else:
-        new_status = OrderStatusEnum.REJECTED
-        new_responsible = None
-        message = "Заявка отклонена заказчиком"
-        comment_text = comment or "Заявка отклонена заказчиком"
-    updated = repo.update_request_status(
-        request_id,
-        new_status=new_status,
-        responsible_role=None
-    )
-    unreserve_all_materials(request.materials, request, db)
-    repo.add_comment_text(request.id, current_user, comment_text)
-    return {"message": message, "request": RequestRead.model_validate(updated, from_attributes=True)}
+async def customer_check(
+    request_id: int,
+    approve: bool,
+    comment: Optional[str] = None,
+    current_user: UserDB = Depends(require_customer),
+    db: Session = Depends(get_db),
+):
+    service = RequestService(db)
+    try:
+        updated = service.customer_review(request_id, approve, current_user, comment)
+        return to_request_read(updated)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Ошибка при согласовании заказчиком")
 
 @router.get("/customer/pending/")
 async def get_customer_pending(current_user: UserDB = Depends(require_customer), db: Session = Depends(get_db)):
     repo = RequestRepository(db)
-    pending_requests = repo.get_all(OrderStatusEnum.CUSTOMER_CHECK)
+    pending_requests = repo.list_requests(OrderStatusEnum.CUSTOMER_CHECK)
     return {
         "count":len(pending_requests),
-        "requests": [RequestRead.model_validate(req, from_attributes=True) for req in pending_requests]
+        "requests": [to_request_read(req) for req in pending_requests]
     }
 
 #Эндпоинты для редактирования заявки
 
 @router.put("/{request_id}")
-async def update_request(request_id: int, update_data:RequestUpdate, current_user: UserDB = Depends(get_current_user),
-                         db: Session = Depends(get_db)):
-    repo = RequestRepository(db)
-    request = repo.get_request(request_id)
-    if not request:
-        raise HTTPException(status_code=404, detail="Заявка не найдена")
-    if current_user.id != request.author_id:
-        raise HTTPException(status_code=403, detail="Только автор может редактировать заявку")
-    if request.status != OrderStatusEnum.DRAFT:
-        raise HTTPException(status_code=400, detail="Нельзя редактировать заявку не в статусе черновик")
-    update_data = update_data.model_dump(exclude_unset=True)
+async def update_request(
+    request_id: int,
+    update_data: RequestUpdate,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = RequestService(db)
     try:
-        updated = repo.update(request_id, **update_data)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка при сохранении: {str(e)}"
-        )
-    return RequestRead.model_validate(updated, from_attributes=True)
+        updated = service.update_draft(request_id, update_data, current_user)
+        return to_request_read(updated)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Ошибка при обновлении заявки")
+
 
 @router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_request(request_id: int, current_user: User = Depends(get_current_user),db: Session = Depends(get_db)):
+async def delete_request(
+    request_id: int,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = RequestService(db)
+    try:
+        service.delete_draft(request_id, current_user)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Ошибка при удалении заявки")
+
+@router.get("/agreement-materials/{object}", response_model=List[MaterialRead])
+async def get_materials(
+    object: ObjectEnum,
+        db: Session = Depends(get_db)
+):
+    print(object)
+    repo = AgreementMaterialRepository(db)
+    list_materials = repo.get_materials(object.name)
+    return list_materials
+
+
+@router.get("/{request_id}/excel")
+async def get_exel(request_id: int, current_user: UserDB = Depends(require_executor), db: Session = Depends(get_db)):
     repo = RequestRepository(db)
-    request = repo.get_request(request_id)
+    request = repo.get_by_id(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-    if current_user.id != request.author_id:
-        raise HTTPException(status_code=403, detail="Только автор может удалить заявку")
-    if request.status != OrderStatusEnum.DRAFT:
-        raise HTTPException(status_code=400, detail="Можно удалить только черновик")
-    try:
-        repo.delete(request_id)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка при удалении заявки: {str(e)}"
-        )
-    return None
-
-#Эндпоинты для добавления материалов
-
-@router.post("/{request_id}/materials")
-async def add_materials(request_id: int,
-                        materials: list,
-                        current_user: User = Depends(get_current_user),
-                        db: Session = Depends(get_db)):
-    repo = RequestRepository(db)
-    request = repo.get_request(request_id)
-
-    if not request:
-        raise HTTPException(status_code=404, detail="Заявка не найдена")
-
-    if current_user.id != request.author_id:
-        raise HTTPException(status_code=403, detail="Только автор может добавлять материалы")
-
-    if request.status != OrderStatusEnum.DRAFT:
-        raise HTTPException(status_code=400, detail="Добавлять материалы можно только в черновик")
-
-    try:
-        repo.add_materials(request_id, materials)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    return {"message": "Материалы добавлены"}
+    if request.status != OrderStatusEnum.APPROVED:
+        raise HTTPException(status_code=400, detail="Заявка не согласована")
+    file_path = generate_request_excel(request)
+    return FileResponse(
+        path=file_path,
+        filename=f"Заявка_{request_id}.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

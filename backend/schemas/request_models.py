@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime, timezone
 from enum import Enum
-from backend.models.enum import UserRoleEnum
+from backend.models.enum import ObjectsEnum, UserRoleEnum, OrderStatusEnum
 
 
 class OrderStatus(str, Enum):
@@ -33,9 +33,9 @@ class CommentRead(CommentBase):
 
 class RequestBase(BaseModel):
     title: str = Field(..., min_length=3, max_length=100)
-    description: str = Field(..., min_length=10)
-    agreement: str = Field(..., min_length=3, max_length=100)
-    object: str = Field(..., min_length=3, max_length=100)
+    description: str | None = None
+    agreement: str = Field(..., min_length=3)
+    object: ObjectsEnum
 
 
 
@@ -56,12 +56,12 @@ class RequestRead(RequestBase):
     id: int
     author_id: int
     author_name: str
-    status: OrderStatus
+    status: OrderStatusEnum
     current_responsible: Optional[UserRoleEnum]
     materials: List["RequestMaterialRead"] = Field(default_factory=list)
     comments: List[CommentRead] = Field(default_factory=list)
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

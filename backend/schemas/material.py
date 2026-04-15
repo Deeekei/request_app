@@ -13,10 +13,9 @@ class UnitEnum(str, Enum):
     L = "л"
 
 class ObjectEnum(str, Enum):
-    AURIKA = "аурика"
-    AURUM = "аурум"
-    MAXIMUS = "максимус"
-
+    AURIKA = 'ЖК "Аурика"'
+    AURUM = 'ЖК "Аурум"'
+    MAXIMUS = 'ЖК "Максимус"'
 
 class MaterialBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)

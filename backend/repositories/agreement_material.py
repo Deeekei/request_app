@@ -2,6 +2,9 @@ from backend.models.agreement import AgreementMaterial
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
+from backend.models.enum import ObjectsEnum
+
+
 class AgreementMaterialRepository:
     def __init__(self, db: Session):
         self.db = db
@@ -19,19 +22,14 @@ class AgreementMaterialRepository:
         return material
 
     def reserve(self, material_id: int, quantity: float):
-        try:
             material = self.get_for_update(material_id)
 
             material.reserved_quantity = (material.reserved_quantity or 0) + quantity
             material.overdraft = material.available_quantity < 0
             return material
 
-        except SQLAlchemyError:
-            self.db.rollback()
-            raise
 
     def unreserve(self, material_id: int, quantity: float):
-        try:
             material = self.get_for_update(material_id)
 
             if (material.reserved_quantity or 0) < quantity:
@@ -42,12 +40,8 @@ class AgreementMaterialRepository:
 
             return material
 
-        except SQLAlchemyError:
-            self.db.rollback()
-            raise
 
     def spend(self, material_id: int, quantity: float):
-        try:
             material = self.get_for_update(material_id)
 
             if (material.reserved_quantity or 0) < quantity:
@@ -61,6 +55,15 @@ class AgreementMaterialRepository:
 
             return material
 
-        except SQLAlchemyError:
-            self.db.rollback()
-            raise
+    def get_materials(self, object: ObjectsEnum):
+        materials = (
+            self.db.query(AgreementMaterial).filter(AgreementMaterial.object == object).all()
+        )
+        return [{"id": m.id,
+                 "name": m.name,
+                 "unit": m.unit,
+                 "total_quantity": m.total_quantity,
+                 "reserved_quantity": m.reserved_quantity,
+                 "spent_quantity": m.spent_quantity} for m in materials]
+
+

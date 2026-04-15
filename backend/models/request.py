@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, Float, String, DateTime, Enum, JSON, ForeignKey
+
+from sqlalchemy import Column, Integer, Float, String, DateTime, Boolean, Enum, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base
@@ -14,7 +15,7 @@ class RequestMaterial(Base):
     agreement_material_id = Column(Integer, ForeignKey("agreement_materials.id"), nullable=False)
 
     quantity = Column(Float, nullable=False)  # запрошенное количество
-    approved_quantity = Column(Float, nullable=True)  # утвержденное количество (может быть меньше)
+    overdraft = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -28,7 +29,7 @@ class RequestDB(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)  # title
-    description = Column(String, nullable=False)
+    description = Column(String, nullable=True)
     agreement = Column(String, nullable=False)  # agreement
     object = Column(Enum(ObjectsEnum), nullable=False)
     status = Column(Enum(OrderStatusEnum), nullable=False, default=OrderStatusEnum.DRAFT)

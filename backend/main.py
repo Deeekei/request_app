@@ -8,7 +8,7 @@ from backend.repositories.user_repository import UserRepository
 
 app = FastAPI(title="Система согласования заявок")
 
-Base.metadata.create_all(bind=engine)
+
 
 
 # CORS для локальной разработки
@@ -19,6 +19,8 @@ app.add_middleware(
         "http://127.0.0.1:63342",
         "http://localhost:8000",   # сам бэкенд
         "http://127.0.0.1:8000",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -32,6 +34,10 @@ app.include_router(request_router)
 async def root():
     return {"message": "API работает"}
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)

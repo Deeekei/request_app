@@ -3,6 +3,8 @@ from typing import Optional
 from backend.models import UserDB
 from backend.schemas.auth_models import UserCreate
 from backend.users.auth import get_password_hash
+from backend.models.enum import UserRoleEnum
+
 
 
 
@@ -10,7 +12,7 @@ class UserRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_user(self, user_data: UserCreate, role: str = "USER") -> UserDB:
+    def create_user(self, user_data: UserCreate, role: UserRoleEnum = UserRoleEnum.USER) -> UserDB:
         """Создание пользователя"""
         hashed_password = get_password_hash(user_data.password)
         db_user = UserDB(

@@ -1,17 +1,18 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from backend.repositories.agreement_material import AgreementMaterialRepository
 from backend.models.request import RequestDB, RequestMaterial
-from backend.models.enum import OrderStatusEnum
+from backend.models.enum import OrderStatusEnum, UserRoleEnum, ObjectsEnum
 from backend.models.comment import CommentDB
 from backend.models.user import UserDB
 from backend.schemas.request_models import CommentCreate
 from backend.schemas.auth_models import User
-
+from fastapi import HTTPException
 from backend.schemas.request_models import RequestCreate
 from backend.schemas.request_materials import RequestMaterialCreate
+from backend.models.agreement import AgreementMaterial
 
 
 class RequestRepository:
@@ -22,7 +23,7 @@ class RequestRepository:
     # ---------------------------------------------------
     # CREATE
     # ---------------------------------------------------
-    def create_request(self, data: RequestCreate, user: User) -> RequestDB:
+    def create_draft(self, data: RequestCreate, user: User) -> RequestDB:
         request = RequestDB(
             title=data.title,
             description=data.description,
@@ -38,52 +39,74 @@ class RequestRepository:
         self.db.add(request)
         self.db.flush()
 
-        materials = [
-            RequestMaterial(
-                request_id=request.id,
-                agreement_material_id=m.agreement_material_id,
-                quantity=m.quantity,
+        for item in data.request_materials:
+            agreement_material = (self.db.query(AgreementMaterial)
+                                  .filter(AgreementMaterial.id == item.agreement_material_id).first())
+            if not agreement_material:
+                raise ValueError(f"Материал с id={item.agreement_material_id} не найден")
+
+            if agreement_material.object != data.object:
+                raise ValueError(
+                    f"Материал id={item.agreement_material_id} не относится к объекту {data.object}"
+                )
+            available_quantity = (
+                    agreement_material.total_quantity
+                    - agreement_material.reserved_quantity
+                    - agreement_material.spent_quantity
             )
-            for m in data.request_materials
-        ]
-        self.db.add_all(materials)
-        self.db.commit()
-        self.db.refresh(request)
+            will_overdraft = item.quantity > available_quantity
+            self.db.add(RequestMaterial(
+                request_id =request.id,
+                overdraft = will_overdraft,
+                agreement_material_id=item.agreement_material_id,
+                quantity=item.quantity,
+            ))
+        self.db.flush()
 
         return request
 
     # ---------------------------------------------------
     # READ
     # ---------------------------------------------------
-    def get_request(self, request_id: int) -> Optional[RequestDB]:
+    def get_by_id(self, request_id: int) -> Optional[RequestDB]:
         return (
             self.db.query(RequestDB)
+            .options(
+                selectinload(RequestDB.materials).selectinload(RequestMaterial.agreement_material),
+                selectinload(RequestDB.comments),
+            )
             .filter(RequestDB.id == request_id)
             .first()
         )
 
-    def get_for_update(self, request_id: int) -> Optional[RequestDB]:
+    def get_by_id_for_update(self, request_id: int) -> Optional[RequestDB]:
         return (
             self.db.query(RequestDB)
+            .options(
+                selectinload(RequestDB.materials).selectinload(RequestMaterial.agreement_material),
+                selectinload(RequestDB.comments),
+            )
             .filter(RequestDB.id == request_id)
             .with_for_update()
             .first()
         )
 
-    def get_all(
+    def list_requests(
         self,
         status: Optional[OrderStatusEnum] = None,
         author_id: Optional[int] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[RequestDB]:
+        query = self.db.query(RequestDB).options(
+            selectinload(RequestDB.materials).selectinload(RequestMaterial.agreement_material),
+            selectinload(RequestDB.comments),
+        )
 
-        query = self.db.query(RequestDB)
-
-        if status:
+        if status is not None:
             query = query.filter(RequestDB.status == status)
 
-        if author_id:
+        if author_id is not None:
             query = query.filter(RequestDB.author_id == author_id)
 
         return (
@@ -98,20 +121,24 @@ class RequestRepository:
     # ---------------------------------------------------
     # UPDATE
     # ---------------------------------------------------
-    def update(self, request_id: int, **kwargs) -> Optional[RequestDB]:
-        request = self.get_for_update(request_id)
-        if not request:
-            return None
-
-        for key, value in kwargs.items():
-            if hasattr(request, key):
-                setattr(request, key, value)
+    def update_draft_fields(
+            self,
+            request: RequestDB,
+            title: str | None = None,
+            description: str | None = None,
+            agreement: str | None = None,
+            object: ObjectsEnum | None = None,
+    ) -> None:
+        if title is not None:
+            request.title = title
+        if description is not None:
+            request.description = description
+        if agreement is not None:
+            request.agreement = agreement
+        if object is not None:
+            request.object = object
 
         request.updated_at = datetime.now(timezone.utc)
-        self.db.commit()
-        self.db.refresh(request)
-
-        return request
 
     def update_request_status(
         self,
@@ -119,7 +146,7 @@ class RequestRepository:
         new_status: OrderStatusEnum,
         responsible_role: Optional[str] = None
     ) -> Optional[RequestDB]:
-        request = self.get_for_update(request_id)
+        request = self.get_by_id_for_update(request_id)
         if not request:
             return None
 
@@ -130,59 +157,109 @@ class RequestRepository:
         self.db.refresh(request)
         return request
 
+    def replace_materials(
+            self,
+            request: RequestDB,
+            materials: list[RequestMaterialCreate],
+    ) -> None:
+        existing_by_agreement_material_id = {
+            m.agreement_material_id: m for m in request.materials
+        }
+        incoming_ids = set()
+
+        for item in materials:
+            incoming_ids.add(item.agreement_material_id)
+
+            agreement_material = (
+                self.db.query(AgreementMaterial)
+                .filter(AgreementMaterial.id == item.agreement_material_id)
+                .first()
+            )
+
+            if not agreement_material:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Материал с id={item.agreement_material_id} не найден"
+                )
+
+            if agreement_material.object != request.object:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Материал '{agreement_material.name}' не относится к объекту заявки"
+                )
+
+            available_quantity = (
+                    float(agreement_material.total_quantity or 0)
+                    - float(agreement_material.reserved_quantity or 0)
+                    - float(agreement_material.spent_quantity or 0)
+            )
+
+            requested_quantity = float(item.quantity or 0)
+            will_overdraft = requested_quantity > available_quantity
+
+            existing = existing_by_agreement_material_id.get(item.agreement_material_id)
+            if existing:
+                existing.quantity = item.quantity
+                existing.overdraft = will_overdraft
+            else:
+                self.db.add(
+                    RequestMaterial(
+                        request_id=request.id,
+                        agreement_material_id=item.agreement_material_id,
+                        quantity=item.quantity,
+                        overdraft=will_overdraft,
+                    )
+                )
+
+        for db_item in list(request.materials):
+            if db_item.agreement_material_id not in incoming_ids:
+                self.db.delete(db_item)
+
+        request.updated_at = datetime.now(timezone.utc)
+
+    def set_status(
+            self,
+            request: RequestDB,
+            new_status: OrderStatusEnum,
+            responsible_role: UserRoleEnum | None,
+    ) -> None:
+        request.status = new_status
+        request.current_responsible = responsible_role
+        request.updated_at = datetime.now(timezone.utc)
+
     # ---------------------------------------------------
     # DELETE
     # ---------------------------------------------------
-    def delete(self, request_id: int) -> bool:
-        request = self.get_for_update(request_id)
-        if not request:
-            return False
-
+    def delete(self, request: RequestDB) -> None:
         self.db.delete(request)
-        self.db.commit()
-        return True
 
     # ---------------------------------------------------
     # COMMENTS
     # ---------------------------------------------------
     def add_comment(
         self,
-        request_id: int,
-        comment_data: CommentCreate,
-        user: UserDB
+        request: RequestDB,
+        user_id: int,
+        user_name: str,
+        body: str,
     ) -> CommentDB:
         comment = CommentDB(
-            body=comment_data.body,
-            user_id=user.id,
-            user_name=user.full_name,
-            request_id=request_id,
-            created_at=datetime.now(timezone.utc)
+            request_id=request.id,
+            user_id=user_id,
+            user_name=user_name,
+            body=body,
         )
-
         self.db.add(comment)
-        self.db.flush()
-        self.db.commit()
-        self.db.refresh(comment)
+        request.updated_at = datetime.now(timezone.utc)
         return comment
 
-    def add_comment_text(
-        self,
-        request_id: int,
-        user: UserDB,
-        comment_text: str
-    ) -> CommentDB:
-
-        comment_data = CommentCreate(body=comment_text)
-        return self.add_comment(request_id, comment_data, user)
-
-    def get_comments(self, request_id: int) -> List[CommentDB]:
+    def get_comments(self, request_id: int):
         return (
             self.db.query(CommentDB)
             .filter(CommentDB.request_id == request_id)
-            .order_by(CommentDB.created_at)
+            .order_by(CommentDB.created_at.asc())
             .all()
         )
-
     # ---------------------------------------------------
     # MATERIALS
     # ---------------------------------------------------

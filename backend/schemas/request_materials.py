@@ -17,26 +17,17 @@ class RequestMaterialCreate(RequestMaterialBase):
 class RequestMaterialRead(RequestMaterialBase):
     id: int
     request_id: int
-    approved_quantity: Optional[float] = Field(None, ge=0)
+    overdraft: bool
     material_name: Optional[str] = None
     material_unit: Optional[UnitEnum] = None
     created_at: datetime
-
-    @model_validator(mode="after")
-    def validate_approved_quantity(self):
-        if (
-            self.approved_quantity is not None
-            and self.approved_quantity > self.quantity
-        ):
-            raise ValueError("approved_quantity cannot exceed requested quantity")
-        return self
 
     model_config = ConfigDict(from_attributes=True)
 
 class RequestMaterial(RequestMaterialBase):
     id: int
     request_id: int
-    approved_quantity: Optional[float] = None
+    overdraft: bool
     created_at: datetime
     material_name: Optional[str] = None
     material_unit: Optional[UnitEnum] = None
@@ -54,3 +45,11 @@ class RequestWithMaterials(BaseModel):
     agreement_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class MaterialRead(BaseModel):
+    id: int
+    name: str
+    unit: UnitEnum
+    total_quantity: float
+    reserved_quantity: float
+    spent_quantity: float
