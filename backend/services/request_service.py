@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
-from urllib3 import request
-
+from backend.services.push_service import send_push_to_users
 from backend.models.enum import OrderStatusEnum, UserRoleEnum
 from backend.models.user import UserDB
 from backend.repositories.request_repository import RequestRepository
@@ -26,6 +25,58 @@ class RequestService:
         except Exception as e:
             self.db.rollback()
             raise
+
+    def _get_notification_recipients(self, request_obj):
+        if request_obj.status == OrderStatusEnum.PTO_CHECK:
+            return self.db.query(UserDB).filter(UserDB.role == UserRoleEnum.PTO).all()
+
+        if request_obj.status == OrderStatusEnum.DIRECTOR_CHECK:
+            return self.db.query(UserDB).filter(UserDB.role == UserRoleEnum.DIRECTOR).all()
+
+        if request_obj.status == OrderStatusEnum.CUSTOMER_CHECK:
+            return self.db.query(UserDB).filter(
+                UserDB.role == UserRoleEnum.CUSTOMER,
+                UserDB.object == request_obj.object
+            ).all()
+
+        if request_obj.status == OrderStatusEnum.APPROVED:
+            return self.db.query(UserDB).filter(UserDB.role == UserRoleEnum.EXECUTOR).all()
+
+        return []
+
+    def _notify_next_approvers(self, request_obj):
+        recipients = self._get_notification_recipients(request_obj)
+        user_ids = [user.id for user in recipients]
+
+        if not user_ids:
+            return 0
+
+        try:
+            return send_push_to_users(
+                db=self.db,
+                user_ids=user_ids,
+                payload={
+                    "title": "Заявка ожидает согласования",
+                    "body": f"Заявка №{request_obj.id} по объекту {request_obj.object.value} ожидает вашего согласования",
+                    "url": f"/requests/{request_obj.id}"
+                }
+            )
+        except Exception:
+            return 0
+
+    def _notify_author(self, request_obj, title: str, body: str):
+        try:
+            return send_push_to_users(
+                db=self.db,
+                user_ids=[request_obj.author_id],
+                payload={
+                    "title": title,
+                    "body": body,
+                    "url": f"/requests/{request_obj.id}"
+                }
+            )
+        except Exception:
+            return 0
 
 
     def update_draft(self, request_id: int, data: RequestUpdate, current_user: UserDB):
@@ -58,12 +109,14 @@ class RequestService:
 
         try:
             for item in request.materials:
-                self.agreement_material_repo.reserve(item.agreement_material_id, item.quantity)
+                if not item.is_manual:
+                    self.agreement_material_repo.reserve(item.agreement_material_id, item.quantity)
 
             self.request_repo.set_status(request=request, new_status= OrderStatusEnum.PTO_CHECK,
                                          responsible_role=UserRoleEnum.PTO)
             self.db.commit()
             self.db.refresh(request)
+            self._notify_next_approvers(request)
             return self.request_repo.get_by_id(request.id)
         except Exception:
             self.db.rollback()
@@ -84,7 +137,8 @@ class RequestService:
 
             else:
                 for item in request.materials:
-                    self.agreement_material_repo.unreserve(item.agreement_material_id, item.quantity)
+                    if not item.is_manual:
+                        self.agreement_material_repo.unreserve(item.agreement_material_id, item.quantity)
                 self.request_repo.set_status(
                     request=request,
                     new_status=OrderStatusEnum.REJECTED,
@@ -100,6 +154,14 @@ class RequestService:
 
             self.db.commit()
             self.db.refresh(request)
+            if approve:
+                self._notify_next_approvers(request)
+            else:
+                self._notify_author(
+                    request,
+                    title="Заявка отклонена",
+                    body=f"Заявка №{request.id} отклонена ПТО"
+                )
             return self.request_repo.get_by_id(request.id)
 
         except Exception:
@@ -121,7 +183,8 @@ class RequestService:
 
             else:
                 for item in request.materials:
-                    self.agreement_material_repo.unreserve(item.agreement_material_id, item.quantity)
+                    if not item.is_manual:
+                        self.agreement_material_repo.unreserve(item.agreement_material_id, item.quantity)
                 self.request_repo.set_status(
                     request=request,
                     new_status=OrderStatusEnum.REJECTED,
@@ -137,6 +200,14 @@ class RequestService:
 
             self.db.commit()
             self.db.refresh(request)
+            if approve:
+                self._notify_next_approvers(request)
+            else:
+                self._notify_author(
+                    request,
+                    title="Заявка отклонена",
+                    body=f"Заявка №{request.id} отклонена Директором АСБ"
+                )
             return self.request_repo.get_by_id(request.id)
 
         except Exception:
@@ -149,18 +220,23 @@ class RequestService:
             raise ValueError("Заявка не найдена")
         if request.status != OrderStatusEnum.CUSTOMER_CHECK:
             raise ValueError("Заявка не на проверке у Заказчика")
+        if request.object != current_user.object:
+            raise ValueError("Заявка не по вашему обьекту")
         try:
             if approve:
                 self.request_repo.set_status(
-                    request=request, new_status=OrderStatusEnum.APPROVED, responsible_role=None
+                    request=request, new_status=OrderStatusEnum.APPROVED, responsible_role=UserRoleEnum.EXECUTOR
                 )
+
                 for item in request.materials:
-                    self.agreement_material_repo.spend(item.agreement_material_id, item.quantity)
+                    if not item.is_manual:
+                        self.agreement_material_repo.spend(item.agreement_material_id, item.quantity)
                 body = comment or "Заявка одобрена заказчиком"
 
             else:
                 for item in request.materials:
-                    self.agreement_material_repo.unreserve(item.agreement_material_id, item.quantity)
+                    if not item.is_manual:
+                        self.agreement_material_repo.unreserve(item.agreement_material_id, item.quantity)
                 self.request_repo.set_status(
                     request=request,
                     new_status=OrderStatusEnum.REJECTED,
@@ -176,6 +252,19 @@ class RequestService:
 
             self.db.commit()
             self.db.refresh(request)
+            if approve:
+                self._notify_next_approvers(request)
+                self._notify_author(
+                    request,
+                    title="Заявка согласована",
+                    body=f"Заявка №{request.id} полностью согласована"
+                )
+            else:
+                self._notify_author(
+                    request,
+                    title="Заявка отклонена",
+                    body=f"Заявка №{request.id} отклонена Руководителем проекта"
+                )
             return self.request_repo.get_by_id(request.id)
 
         except Exception:

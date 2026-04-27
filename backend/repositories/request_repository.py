@@ -27,21 +27,44 @@ class RequestRepository:
         request = RequestDB(
             title=data.title,
             description=data.description,
-            object = data.object,
-            agreement = data.agreement,
+            object=data.object,
+            agreement=data.agreement,
+            section=data.section,
+            delivery_date=data.delivery_date,
             author_id=user.id,
             author_name=user.full_name,
             status=OrderStatusEnum.DRAFT,
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
         )
 
         self.db.add(request)
         self.db.flush()
 
         for item in data.request_materials:
-            agreement_material = (self.db.query(AgreementMaterial)
-                                  .filter(AgreementMaterial.id == item.agreement_material_id).first())
+            # Ручной материал
+            if item.is_manual:
+                self.db.add(
+                    RequestMaterial(
+                        request_id=request.id,
+                        overdraft=False,
+                        agreement_material_id=None,
+                        is_manual=True,
+                        manual_name=item.manual_name,
+                        manual_unit=item.manual_unit,
+                        manual_comment=item.manual_comment,
+                        quantity=item.quantity,
+                    )
+                )
+                continue
+
+            # Материал из договора
+            agreement_material = (
+                self.db.query(AgreementMaterial)
+                .filter(AgreementMaterial.id == item.agreement_material_id)
+                .first()
+            )
+
             if not agreement_material:
                 raise ValueError(f"Материал с id={item.agreement_material_id} не найден")
 
@@ -49,20 +72,28 @@ class RequestRepository:
                 raise ValueError(
                     f"Материал id={item.agreement_material_id} не относится к объекту {data.object}"
                 )
-            available_quantity = (
-                    agreement_material.total_quantity
-                    - agreement_material.reserved_quantity
-                    - agreement_material.spent_quantity
-            )
-            will_overdraft = item.quantity > available_quantity
-            self.db.add(RequestMaterial(
-                request_id =request.id,
-                overdraft = will_overdraft,
-                agreement_material_id=item.agreement_material_id,
-                quantity=item.quantity,
-            ))
-        self.db.flush()
 
+            available_quantity = (
+                    float(agreement_material.total_quantity or 0)
+                    - float(agreement_material.reserved_quantity or 0)
+                    - float(agreement_material.spent_quantity or 0)
+            )
+
+            will_overdraft = float(item.quantity or 0) > available_quantity
+
+            self.db.add(
+                RequestMaterial(
+                    request_id=request.id,
+                    overdraft=will_overdraft,
+                    agreement_material_id=item.agreement_material_id,
+                    manual_name=None,
+                    manual_unit=None,
+                    manual_comment=None,
+                    quantity=item.quantity,
+                )
+            )
+
+        self.db.flush()
         return request
 
     # ---------------------------------------------------
@@ -95,6 +126,7 @@ class RequestRepository:
         self,
         status: Optional[OrderStatusEnum] = None,
         author_id: Optional[int] = None,
+        user: Optional[UserDB] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[RequestDB]:
@@ -105,6 +137,9 @@ class RequestRepository:
 
         if status is not None:
             query = query.filter(RequestDB.status == status)
+
+        if user is not None and user.role == UserRoleEnum.CUSTOMER:
+            query = query.filter(RequestDB.object == user.object)
 
         if author_id is not None:
             query = query.filter(RequestDB.author_id == author_id)
@@ -128,6 +163,8 @@ class RequestRepository:
             description: str | None = None,
             agreement: str | None = None,
             object: ObjectsEnum | None = None,
+            section: str | None = None,
+            delivery_date: datetime | None = None,
     ) -> None:
         if title is not None:
             request.title = title
@@ -137,6 +174,10 @@ class RequestRepository:
             request.agreement = agreement
         if object is not None:
             request.object = object
+        if section is not None:
+            request.section = section
+        if delivery_date is not None:
+            request.delivery_date = delivery_date
 
         request.updated_at = datetime.now(timezone.utc)
 
@@ -162,13 +203,42 @@ class RequestRepository:
             request: RequestDB,
             materials: list[RequestMaterialCreate],
     ) -> None:
-        existing_by_agreement_material_id = {
-            m.agreement_material_id: m for m in request.materials
-        }
-        incoming_ids = set()
+        # 1. удалить старые позиции
+        for db_item in list(request.materials):
+            self.db.delete(db_item)
 
+        self.db.flush()
+
+        # 2. создать новые
         for item in materials:
-            incoming_ids.add(item.agreement_material_id)
+            # --- Ручной материал ---
+            if item.is_manual:
+                if not item.manual_name or not item.manual_unit:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Для ручного материала нужно указать название и единицу измерения"
+                    )
+
+                self.db.add(
+                    RequestMaterial(
+                        request_id=request.id,
+                        agreement_material_id=None,
+                        is_manual=True,
+                        manual_name=item.manual_name.strip(),
+                        manual_unit=item.manual_unit.strip(),
+                        manual_comment=(item.manual_comment or "").strip() or None,
+                        quantity=item.quantity,
+                        overdraft=False,
+                    )
+                )
+                continue
+
+            # --- Материал из договора ---
+            if item.agreement_material_id is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Нужно выбрать материал из договора или включить ручной ввод"
+                )
 
             agreement_material = (
                 self.db.query(AgreementMaterial)
@@ -197,23 +267,18 @@ class RequestRepository:
             requested_quantity = float(item.quantity or 0)
             will_overdraft = requested_quantity > available_quantity
 
-            existing = existing_by_agreement_material_id.get(item.agreement_material_id)
-            if existing:
-                existing.quantity = item.quantity
-                existing.overdraft = will_overdraft
-            else:
-                self.db.add(
-                    RequestMaterial(
-                        request_id=request.id,
-                        agreement_material_id=item.agreement_material_id,
-                        quantity=item.quantity,
-                        overdraft=will_overdraft,
-                    )
+            self.db.add(
+                RequestMaterial(
+                    request_id=request.id,
+                    agreement_material_id=item.agreement_material_id,
+                    is_manual=False,
+                    manual_name=None,
+                    manual_unit=None,
+                    manual_comment=None,
+                    quantity=item.quantity,
+                    overdraft=will_overdraft,
                 )
-
-        for db_item in list(request.materials):
-            if db_item.agreement_material_id not in incoming_ids:
-                self.db.delete(db_item)
+            )
 
         request.updated_at = datetime.now(timezone.utc)
 

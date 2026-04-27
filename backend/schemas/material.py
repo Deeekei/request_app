@@ -3,14 +3,6 @@ from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
-class UnitEnum(str, Enum):
-    PCS = "шт"
-    KG = "кг"
-    TON = "т"
-    M = "м"
-    M2 = "м²"
-    M3 = "м³"
-    L = "л"
 
 class ObjectEnum(str, Enum):
     AURIKA = 'ЖК "Аурика"'
@@ -19,7 +11,7 @@ class ObjectEnum(str, Enum):
 
 class MaterialBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
-    unit: UnitEnum
+    unit: str = Field(..., max_length=10)
     total_quantity: float = Field(..., gt=0)
     notes: Optional[str] = Field(None, max_length=500)
 

@@ -14,8 +14,8 @@ engine = create_engine(
     DATABASE_URL,
     pool_size=5,  # количество соединений в пуле
     max_overflow=10,  # максимум дополнительных соединений
-    echo=True,
-    pool_pre_ping=True# выводить SQL запросы в консоль (полезно для отладки)
+    echo=False,
+    pool_pre_ping=True
 )
 
 # Базовый класс для моделей

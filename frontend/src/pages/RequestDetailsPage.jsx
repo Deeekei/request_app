@@ -6,7 +6,7 @@ import { CommentsList } from '../components/CommentsList';
 import { MaterialsTable } from '../components/MaterialsTable';
 import { PageHeader } from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
-import { formatDateTime, normalizeEnum, normalizeRole, statusTone } from '../utils/formatters';
+import { formatDate, formatDateTime, normalizeEnum, normalizeRole, statusTone } from '../utils/formatters';
 
 export function RequestDetailsPage() {
   const { token, user } = useAuth();
@@ -48,18 +48,29 @@ export function RequestDetailsPage() {
   }), [requestId, reviewComment, token]);
 
   const statusValue = normalizeEnum(request?.status);
-  const isDraft = statusValue === 'черновик';
-  const canEdit = isDraft && user?.id === request?.author_id;
-  const canSubmit = canEdit;
-  const canDelete = canEdit;
-  const currentResponsible = normalizeRole(request?.current_responsible?.value || request?.current_responsible);
-  const userRole = normalizeRole(user?.role);
-  const canReview = userRole === 'администратор'
-    ? ['пто', 'директор', 'заказчик'].includes(currentResponsible)
-    : Boolean(roleActions[userRole]) && currentResponsible === userRole;
-  const hasOverdraftMaterials = Array.isArray(request?.materials)
-    && request.materials.some((item) => Boolean(item.overdraft ?? item.will_overdraft));
-  const canDownloadExcel = ['исполнитель', 'администратор'].includes(userRole) && statusValue === 'согласовано';
+const isDraft = statusValue === 'черновик';
+const canEdit = isDraft && user?.id === request?.author_id;
+const canSubmit = canEdit;
+const canDelete = canEdit;
+
+const rawResponsible = normalizeRole(
+  request?.current_responsible?.value || request?.current_responsible
+);
+
+const currentResponsible = rawResponsible === 'снабжение' && statusValue === 'согласовано'
+  ? 'Снабжение'
+  : (rawResponsible || '—');
+
+const userRole = normalizeRole(user?.role);
+
+const canReview = userRole === 'администратор'
+  ? ['пто', 'директор', 'заказчик'].includes(rawResponsible)
+  : Boolean(roleActions[userRole]) && rawResponsible === userRole;
+
+const hasOverdraftMaterials = Array.isArray(request?.materials)
+  && request.materials.some((item) => Boolean(item.overdraft ?? item.will_overdraft));
+
+const canDownloadExcel = ['исполнитель', 'снабжение', 'администратор'].includes(userRole) && statusValue === 'согласовано';
 
   async function handleSubmitRequest() {
     try {
@@ -125,7 +136,7 @@ export function RequestDetailsPage() {
   async function handleReview(approve) {
     try {
       setSuccess('');
-      const reviewHandler = userRole === 'администратор' ? roleActions[currentResponsible] : roleActions[userRole];
+      const reviewHandler = userRole === 'администратор' ? roleActions[rawResponsible] : roleActions[userRole];
       if (!reviewHandler) throw new Error('Для этой заявки недоступно согласование.');
       await reviewHandler(approve);
       setSuccess(approve ? 'Решение сохранено.' : 'Заявка отклонена.');
@@ -159,7 +170,7 @@ export function RequestDetailsPage() {
             <div className="details-card__head">
               <div className="meta-line wrap">
                 <span className={`pill ${statusTone(request.status)}`}>{normalizeEnum(request.status)}</span>
-                <span className="muted-pill">Ответственный: {normalizeEnum(request.current_responsible)}</span>
+                <span className="muted-pill">Ответственный: {currentResponsible}</span>
               </div>
               <div className="actions-row">
                 {canSubmit ? <button className="button primary" type="button" onClick={handleSubmitRequest}>Отправить на согласование</button> : null}
@@ -172,7 +183,9 @@ export function RequestDetailsPage() {
               <div><span>ID</span><strong>{request.id}</strong></div>
               <div><span>Автор</span><strong>{request.author_name}</strong></div>
               <div><span>Объект</span><strong>{normalizeEnum(request.object)}</strong></div>
-              <div><span>Договор</span><strong>{request.agreement}</strong></div>
+              <div><span>Шифр проекта</span><strong>{request.agreement}</strong></div>
+              <div><span>Секция</span><strong>{request.section || "—"}</strong></div>
+              <div><span>Дата доставки</span><strong>{request.delivery_date ? formatDate(request.delivery_date) : "—"}</strong></div>
               <div><span>Создано</span><strong>{formatDateTime(request.created_at)}</strong></div>
               <div><span>Обновлено</span><strong>{formatDateTime(request.updated_at)}</strong></div>
             </div>

@@ -24,7 +24,9 @@ export function RequestCard({ request }) {
       <div className="meta-grid">
         <span><strong>Автор:</strong> {request.author_name}</span>
         <span><strong>Объект:</strong> {normalizeEnum(request.object)}</span>
-        <span><strong>Договор:</strong> {request.agreement}</span>
+        <span><strong>Шифр проекта:</strong> {request.agreement}</span>
+        <span><strong>Секция:</strong> {request.section || "—"}</span>
+        <span><strong>Дата доставки:</strong> {formatDateTime(request.delivery_date)}</span>
         <span><strong>Создано:</strong> {formatDateTime(request.created_at)}</span>
       </div>
 

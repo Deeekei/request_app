@@ -12,7 +12,7 @@ from backend.users.auth import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Аутентификация"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 
 # === Dependency ===

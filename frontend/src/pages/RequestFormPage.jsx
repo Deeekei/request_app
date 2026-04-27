@@ -12,7 +12,77 @@ const objectOptions = [
   { value: 'ЖК "Максимус"', label: 'ЖК "Максимус"' },
 ];
 
-const emptyRow = { agreement_material_id: '', quantity: '1' };
+
+function generateRowKey() {
+  return globalThis.crypto?.randomUUID?.() ?? `row_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function createEmptyRow() {
+  return {
+    id: null,
+    agreement_material_id: '',
+    is_manual: false,
+    manual_name: '',
+    manual_unit: '',
+    manual_comment: '',
+    quantity: '1',
+    rowKey: generateRowKey(),
+  };
+}
+
+function normalizeDateForInput(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.slice(0, 10);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function mapMaterialToFormRow(item) {
+  return {
+    rowKey: item.id ? `saved_${item.id}` : generateRowKey(),
+    id: item.id ?? null,
+    agreement_material_id: item.is_manual ? '' : (item.agreement_material_id ?? ''),
+    is_manual: Boolean(item.is_manual),
+    manual_name: item.is_manual ? (item.material_name || '') : '',
+    manual_unit: item.is_manual ? (item.material_unit || item.unit || '') : '',
+    manual_comment: item.is_manual ? (item.manual_comment || '') : '',
+    quantity: item.quantity != null ? String(item.quantity) : '1',
+  };
+}
+
+function buildMaterialPayload(item) {
+  const quantity = Number(item.quantity);
+
+  if (!quantity || quantity <= 0) {
+    return null;
+  }
+
+  if (item.is_manual) {
+    if (!item.manual_name?.trim() || !item.manual_unit) {
+      return null;
+    }
+
+    return {
+      is_manual: true,
+      agreement_material_id: null,
+      manual_name: item.manual_name.trim(),
+      manual_unit: item.manual_unit,
+      manual_comment: item.manual_comment?.trim() || null,
+      quantity,
+    };
+  }
+
+  if (!item.agreement_material_id) {
+    return null;
+  }
+
+  return {
+    is_manual: false,
+    agreement_material_id: Number(item.agreement_material_id),
+    quantity,
+  };
+}
 
 export function RequestFormPage({ mode }) {
   const { token } = useAuth();
@@ -26,8 +96,10 @@ export function RequestFormPage({ mode }) {
     title: '',
     description: '',
     agreement: '',
-    object: 'ЖК \"Аурика\"',
-    request_materials: [{ ...emptyRow }],
+    section: '',
+    delivery_date: '',
+    object: 'ЖК "Аурика"',
+    request_materials: [createEmptyRow()],
   });
 
   const [error, setError] = useState('');
@@ -45,16 +117,15 @@ export function RequestFormPage({ mode }) {
         if (cancelled) return;
 
         setForm({
-          title: data.title,
-          description: data.description,
-          agreement: data.agreement,
+          title: data.title || '',
+          description: data.description || '',
+          agreement: data.agreement || '',
+          section: data.section || '',
+          delivery_date: normalizeDateForInput(data.delivery_date),
           object: typeof data.object === 'string' ? data.object : data.object?.value,
           request_materials: (data.materials || []).length
-            ? (data.materials || []).map((item) => ({
-                agreement_material_id: item.agreement_material_id,
-                quantity: String(item.quantity),
-              }))
-            : [{ ...emptyRow }],
+            ? data.materials.map(mapMaterialToFormRow)
+            : [createEmptyRow()],
         });
       })
       .catch((err) => {
@@ -98,16 +169,40 @@ export function RequestFormPage({ mode }) {
   function updateMaterial(index, field, value) {
     setForm((prev) => ({
       ...prev,
-      request_materials: prev.request_materials.map((row, rowIndex) =>
-        rowIndex === index ? { ...row, [field]: value } : row
-      ),
+      request_materials: prev.request_materials.map((row, rowIndex) => {
+        if (rowIndex !== index) return row;
+
+        if (field === 'material_selector') {
+          if (value === '__manual__') {
+            return {
+              ...row,
+              is_manual: true,
+              agreement_material_id: '',
+            };
+          }
+
+          return {
+            ...row,
+            is_manual: false,
+            agreement_material_id: value,
+            manual_name: '',
+            manual_unit: '',
+            manual_comment: '',
+          };
+        }
+
+        return {
+          ...row,
+          [field]: value,
+        };
+      }),
     }));
   }
 
   function addMaterial() {
     setForm((prev) => ({
       ...prev,
-      request_materials: [...prev.request_materials, { ...emptyRow }],
+      request_materials: [...prev.request_materials, createEmptyRow()],
     }));
   }
 
@@ -117,7 +212,7 @@ export function RequestFormPage({ mode }) {
       request_materials:
         prev.request_materials.length > 1
           ? prev.request_materials.filter((_, rowIndex) => rowIndex !== index)
-          : [{ ...emptyRow }],
+          : [createEmptyRow()],
     }));
   }
 
@@ -127,29 +222,69 @@ export function RequestFormPage({ mode }) {
     setForm((prev) => ({
       ...prev,
       object: nextObject,
-      request_materials: prev.request_materials.map((row) => ({
-        ...row,
-        agreement_material_id: '',
-      })),
+      request_materials: prev.request_materials.map((row) => (
+        row.is_manual
+          ? row
+          : {
+              ...row,
+              agreement_material_id: '',
+            }
+      )),
     }));
+  }
+
+  function validateForm() {
+    if (!form.title.trim()) return 'Укажите название заявки';
+    if (!form.agreement.trim()) return 'Укажите шифр проекта';
+    if (!form.section.trim()) return 'Укажите секцию';
+    if (!form.delivery_date) return 'Укажите дату доставки';
+
+    if (!form.request_materials.length) {
+      return 'Добавьте хотя бы один материал';
+    }
+
+    for (const item of form.request_materials) {
+      if (!item.quantity || Number(item.quantity) <= 0) {
+        return 'Укажите корректное количество для каждого материала';
+      }
+
+      if (item.is_manual) {
+        if (!item.manual_name?.trim()) {
+          return 'Для ручного материала укажите название';
+        }
+        if (!item.manual_unit) {
+          return 'Для ручного материала укажите единицу измерения';
+        }
+      } else if (!item.agreement_material_id) {
+        return 'Выберите материал из договора или переключитесь на ручной ввод';
+      }
+    }
+
+    return '';
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setIsSaving(true);
 
     const payload = {
-      title: form.title,
-      description: form.description,
-      agreement: form.agreement,
+      title: form.title.trim(),
+      description: form.description?.trim() || '',
+      agreement: form.agreement.trim(),
+      section: form.section.trim(),
+      delivery_date: form.delivery_date,
       object: form.object,
       request_materials: form.request_materials
-        .filter((item) => item.agreement_material_id && item.quantity)
-        .map((item) => ({
-          agreement_material_id: Number(item.agreement_material_id),
-          quantity: Number(item.quantity),
-        })),
+        .map(buildMaterialPayload)
+        .filter(Boolean),
     };
 
     try {
@@ -181,7 +316,7 @@ export function RequestFormPage({ mode }) {
           <div className="details-card">
             <div className="form-grid two-columns">
               <div className="field">
-                <label>Название</label>
+                <label>Наименование заявки</label>
                 <input
                   value={form.title}
                   onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
@@ -191,11 +326,30 @@ export function RequestFormPage({ mode }) {
               </div>
 
               <div className="field">
-                <label>Договор</label>
+                <label>Шифр проекта</label>
                 <input
                   value={form.agreement}
                   onChange={(e) => setForm((p) => ({ ...p, agreement: e.target.value }))}
                   minLength={3}
+                  required
+                />
+              </div>
+
+              <div className="field">
+                <label>Секция</label>
+                <input
+                  value={form.section}
+                  onChange={(e) => setForm((p) => ({ ...p, section: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="field">
+                <label>Дата доставки</label>
+                <input
+                  type="date"
+                  value={form.delivery_date}
+                  onChange={(e) => setForm((p) => ({ ...p, delivery_date: e.target.value }))}
                   required
                 />
               </div>
@@ -229,7 +383,7 @@ export function RequestFormPage({ mode }) {
             onRemove={removeMaterial}
             materialOptions={materialOptions}
             currentObject={form.object}
-            isLoading={materialsLoading}
+            isLoading={materialsLoading || isSaving}
           />
 
           <div className="actions-row">

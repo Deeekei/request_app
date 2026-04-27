@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Enum, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base
-from backend.models.enum import UserRoleEnum
+from backend.models.enum import UserRoleEnum, ObjectsEnum
 
 
 class UserDB(Base):
@@ -14,6 +14,7 @@ class UserDB(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     role = Column(Enum(UserRoleEnum), nullable=False)
+    object = Column(Enum(ObjectsEnum), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

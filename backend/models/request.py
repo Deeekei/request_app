@@ -1,5 +1,5 @@
-
-from sqlalchemy import Column, Integer, Float, String, DateTime, Boolean, Enum, JSON, ForeignKey
+from annotated_types import Timezone
+from sqlalchemy import Column, Integer, Float, String, DateTime, Boolean, Enum, JSON, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base
@@ -12,8 +12,11 @@ class RequestMaterial(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     request_id = Column(Integer, ForeignKey("requests.id", ondelete="CASCADE"), nullable=False)
-    agreement_material_id = Column(Integer, ForeignKey("agreement_materials.id"), nullable=False)
-
+    agreement_material_id = Column(Integer, ForeignKey("agreement_materials.id"), nullable=True)
+    is_manual = Column(Boolean, nullable=False, default=False)
+    manual_name = Column(String, nullable=True)
+    manual_unit = Column(String, nullable=True)
+    manual_comment = Column(String, nullable=True)
     quantity = Column(Float, nullable=False)  # запрошенное количество
     overdraft = Column(Boolean, nullable=False, default=False)
 
@@ -30,7 +33,9 @@ class RequestDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)  # title
     description = Column(String, nullable=True)
-    agreement = Column(String, nullable=False)  # agreement
+    agreement = Column(String, nullable=False)
+    section = Column(String, nullable=True)
+    delivery_date = Column(Date, nullable=True)# agreement
     object = Column(Enum(ObjectsEnum), nullable=False)
     status = Column(Enum(OrderStatusEnum), nullable=False, default=OrderStatusEnum.DRAFT)
     current_responsible = Column(Enum(UserRoleEnum), nullable=True)

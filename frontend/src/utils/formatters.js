@@ -5,6 +5,13 @@ export function formatDateTime(value) {
   return date.toLocaleString('ru-RU');
 }
 
+export function formatDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('ru-RU');
+}
+
 const ENUM_LABELS = {
   AURIKA: 'ЖК "Аурика"',
   AURUM: 'ЖК "Аурум"',

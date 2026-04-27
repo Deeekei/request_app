@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routers import auth_router, request_router
+from backend.routers import auth_router, request_router, push_router
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal, engine, Base
 from backend.repositories.request_repository import RequestRepository
@@ -15,10 +15,8 @@ app = FastAPI(title="Система согласования заявок")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:63342",  # Ваш текущий порт WebStorm
-        "http://127.0.0.1:63342",
-        "http://localhost:8000",   # сам бэкенд
-        "http://127.0.0.1:8000",
+        "https://supply.stekufa.ru",
+        "https://www.supply.stekufa.ru",
         "http://127.0.0.1:5173",
         "http://localhost:5173",
     ],
@@ -27,14 +25,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router)
-app.include_router(request_router)
+app.include_router(auth_router, prefix="/api")
+app.include_router(request_router, prefix="/api")
+app.include_router(push_router, prefix="/api")
 
-@app.get("/")
+@app.get("/api")
 async def root():
     return {"message": "API работает"}
 
-@app.get("/health")
+@app.get("/api/health")
 async def health():
     return {"status": "ok"}
 

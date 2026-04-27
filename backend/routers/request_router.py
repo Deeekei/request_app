@@ -28,13 +28,19 @@ def to_request_read(req) -> RequestRead:
     materials = [
         RequestMaterialRead.model_validate(
             {
-                "agreement_material_id": m.agreement_material_id,
                 "id": m.id,
                 "request_id": m.request_id,
+                "agreement_material_id": m.agreement_material_id,
+                "is_manual": m.is_manual,
                 "quantity": m.quantity,
                 "overdraft": m.overdraft,
-                "material_name": m.agreement_material.name if m.agreement_material else None,
-                "material_unit": m.agreement_material.unit if m.agreement_material else None,
+                "material_name": m.manual_name if m.is_manual else (
+                    m.agreement_material.name if m.agreement_material else None
+                ),
+                "material_unit": m.manual_unit if m.is_manual else (
+                    m.agreement_material.unit if m.agreement_material else None
+                ),
+                "manual_comment": m.manual_comment if m.is_manual else None,
                 "created_at": m.created_at,
             }
         )
@@ -61,6 +67,8 @@ def to_request_read(req) -> RequestRead:
             "description": req.description,
             "object": req.object,
             "agreement": req.agreement,
+            "section": req.section,
+            "delivery_date": req.delivery_date,
             "status": req.status,
             "author_id": req.author_id,
             "author_name": req.author_name,
@@ -71,7 +79,6 @@ def to_request_read(req) -> RequestRead:
             "comments": comments,
         }
     )
-
 def spend_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session):
     repo = AgreementMaterialRepository(db)
     try:
@@ -280,7 +287,7 @@ async def customer_check(
 @router.get("/customer/pending/")
 async def get_customer_pending(current_user: UserDB = Depends(require_customer), db: Session = Depends(get_db)):
     repo = RequestRepository(db)
-    pending_requests = repo.list_requests(OrderStatusEnum.CUSTOMER_CHECK)
+    pending_requests = repo.list_requests(status=OrderStatusEnum.CUSTOMER_CHECK, user=current_user)
     return {
         "count":len(pending_requests),
         "requests": [to_request_read(req) for req in pending_requests]

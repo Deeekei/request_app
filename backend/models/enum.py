@@ -5,6 +5,7 @@ class OrderStatusEnum(enum.Enum):
     PTO_CHECK = "проверка ПТО"
     DIRECTOR_CHECK = "проверка директором АСБ"
     CUSTOMER_CHECK = "проверка заказчиком"
+    EXECUTOR_CHECK="Передано в снабжение"
     APPROVED = "согласовано"
     REJECTED = "отклонено"
 

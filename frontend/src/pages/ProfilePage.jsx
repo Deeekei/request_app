@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { Alert } from '../components/Alert';
 import { useAuth } from '../context/AuthContext';
+import { PushSettings } from '../components/PushSettings';
 import { formatDateTime } from '../utils/formatters';
 
 export function ProfilePage() {
@@ -43,6 +44,8 @@ export function ProfilePage() {
           </div>
         </div>
       </div>
+
+      <PushSettings />
     </section>
   );
 }
