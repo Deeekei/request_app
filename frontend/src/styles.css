@@ -65,6 +65,38 @@ button, input, select, textarea { font: inherit; }
   letter-spacing: 0.05em;
 }
 
+
+.mobile-topbar {
+  display: none;
+}
+
+.burger-button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--red-700), var(--red-500));
+  box-shadow: 0 10px 22px rgba(185, 28, 28, 0.18);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0;
+}
+
+.burger-button span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -242,10 +274,79 @@ th { color: #7f1d1d; font-size: .92rem; }
 .comment-card p { margin: 0; line-height: 1.6; }
 
 @media (max-width: 1080px) {
-  .app-shell { grid-template-columns: 1fr; }
+  .app-shell {
+    grid-template-columns: 1fr;
+    padding-top: 68px;
+  }
+
+  .mobile-topbar {
+    position: fixed;
+    z-index: 70;
+    top: 0;
+    left: 0;
+    right: 0;
+    min-height: 68px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.96);
+    border-bottom: 1px solid rgba(252, 165, 165, 0.65);
+    box-shadow: 0 12px 28px rgba(127, 29, 29, 0.08);
+    backdrop-filter: blur(12px);
+  }
+
+  .mobile-topbar div {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .mobile-topbar strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #7f1d1d;
+  }
+
+  .mobile-topbar span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .burger-button {
+    display: flex;
+    flex: 0 0 auto;
+  }
+
   .sidebar {
-    position: static;
-    height: auto;
+    position: fixed;
+    z-index: 80;
+    top: 0;
+    left: 0;
+    width: min(86vw, 340px);
+    height: 100vh;
+    overflow-y: auto;
+    transform: translateX(-105%);
+    transition: transform .22s ease;
+    box-shadow: 24px 0 48px rgba(17, 24, 39, 0.24);
+  }
+
+  .app-shell.menu-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    z-index: 75;
+    inset: 0;
+    display: block;
+    border: 0;
+    background: rgba(17, 24, 39, 0.46);
+    cursor: pointer;
   }
 }
 
