@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { formatDateTime, normalizeEnum, statusTone, capitalizeFirst } from '../utils/formatters';
+import { formatDateTime, normalizeEnum, statusTone, capitalizeFirst,formatStatus } from '../utils/formatters';
 
 export function RequestCard({ request }) {
   const isDraft = normalizeEnum(request.status) === 'черновик';
@@ -10,9 +10,9 @@ export function RequestCard({ request }) {
         <div>
           <h3>{request.title}</h3>
           <div className="meta-line wrap">
-            <span className={`pill ${statusTone(request.status)}`}>{capitalizeFirst(request.status)}</span>
+            <span className={`pill ${statusTone(request.status)}`}>{formatStatus(request.status)}</span>
             <span className="muted-pill">
-              Ответственный: {normalizeEnum(request.current_responsible)}
+              Ответственный: {formatStatus(request.current_responsible)}
             </span>
           </div>
         </div>

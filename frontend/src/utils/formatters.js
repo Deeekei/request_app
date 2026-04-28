@@ -23,20 +23,20 @@ const ENUM_LABELS = {
 
 export function normalizeEnum(value) {
   if (!value) return '—';
+  const raw = typeof value === 'object' && 'value' in value ? value.value : String(value);
+  return ENUM_LABELS[raw] || raw;
+}
 
-  const raw =
-    typeof value === 'object' && 'value' in value
-      ? value.value
-      : String(value);
+export function formatStatus(value) {
+  let text = normalizeEnum(value);
 
-  let text = ENUM_LABELS[raw] || raw;
+  if (!text || text === '—') return text;
 
-  // Замена ролей (с учётом падежей)
   text = text
     .replace(/заказчиком/gi, 'Руководителем проекта')
     .replace(/заказчик/gi, 'Руководитель проекта');
 
-  return text;
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 export function capitalizeFirst(value) {

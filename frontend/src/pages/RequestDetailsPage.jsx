@@ -6,7 +6,7 @@ import { CommentsList } from '../components/CommentsList';
 import { MaterialsTable } from '../components/MaterialsTable';
 import { PageHeader } from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatDateTime, normalizeEnum, normalizeRole, statusTone, capitalizeFirst } from '../utils/formatters';
+import { formatDate, formatDateTime, normalizeEnum, normalizeRole, statusTone, formatStatus } from '../utils/formatters';
 
 export function RequestDetailsPage() {
   const { token, user } = useAuth();
@@ -169,7 +169,7 @@ const canDownloadExcel = ['исполнитель', 'снабжение', 'ад�
           <div className="details-card">
             <div className="details-card__head">
               <div className="meta-line wrap">
-                <span className={`pill ${statusTone(request.status)}`}>{capitalizeFirst(request.status)}</span>
+                <span className={`pill ${statusTone(request.status)}`}>{formatStatus(request.status)}</span>
                 <span className="muted-pill">Ответственный: {currentResponsible}</span>
               </div>
               <div className="actions-row">
