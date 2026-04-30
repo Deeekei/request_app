@@ -27,25 +27,6 @@ export function normalizeEnum(value) {
   return ENUM_LABELS[raw] || raw;
 }
 
-export function formatStatus(value) {
-  let text = normalizeEnum(value);
-
-  if (!text || text === '—') return text;
-
-  text = text
-    .replace(/заказчиком/gi, 'Руководителем проекта')
-    .replace(/заказчик/gi, 'Руководитель проекта');
-
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-export function capitalizeFirst(value) {
-  let text = normalizeEnum(value);
-  if (!text || text === '—') return text;
-  text = text.replace(/заказчиком/gi, 'Руководителем проекта')
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
 export function statusTone(status) {
   const normalized = normalizeEnum(status).toLowerCase();
   if (normalized.includes('черновик')) return 'draft';

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routers import auth_router, request_router, push_router
+from backend.routers import auth_router, request_router, push_router, attachment_router
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal, engine, Base
 from backend.repositories.request_repository import RequestRepository
@@ -25,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(attachment_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(request_router, prefix="/api")
 app.include_router(push_router, prefix="/api")

@@ -3,10 +3,12 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { requestApi } from '../api/requestApi';
 import { Alert } from '../components/Alert';
 import { CommentsList } from '../components/CommentsList';
+import { AttachmentList } from '../components/AttachmentList';
+import { AttachmentUpload } from '../components/AttachmentUpload';
 import { MaterialsTable } from '../components/MaterialsTable';
 import { PageHeader } from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatDateTime, normalizeEnum, normalizeRole, statusTone, formatStatus } from '../utils/formatters';
+import { formatDate, formatDateTime, normalizeEnum, normalizeRole, statusTone } from '../utils/formatters';
 
 export function RequestDetailsPage() {
   const { token, user } = useAuth();
@@ -19,6 +21,7 @@ export function RequestDetailsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [attachmentsRefreshKey, setAttachmentsRefreshKey] = useState(0);
 
   async function loadRequest() {
     setIsLoading(true);
@@ -71,6 +74,7 @@ const hasOverdraftMaterials = Array.isArray(request?.materials)
   && request.materials.some((item) => Boolean(item.overdraft ?? item.will_overdraft));
 
 const canDownloadExcel = ['исполнитель', 'снабжение', 'администратор'].includes(userRole) && statusValue === 'согласовано';
+const canManageAttachments = ['исполнитель', 'снабжение', 'executor'].includes(userRole) && statusValue === 'согласовано';
 
   async function handleSubmitRequest() {
     try {
@@ -169,7 +173,7 @@ const canDownloadExcel = ['исполнитель', 'снабжение', 'ад�
           <div className="details-card">
             <div className="details-card__head">
               <div className="meta-line wrap">
-                <span className={`pill ${statusTone(request.status)}`}>{formatStatus(request.status)}</span>
+                <span className={`pill ${statusTone(request.status)}`}>{normalizeEnum(request.status)}</span>
                 <span className="muted-pill">Ответственный: {currentResponsible}</span>
               </div>
               <div className="actions-row">
@@ -224,6 +228,26 @@ const canDownloadExcel = ['исполнитель', 'снабжение', 'ад�
           ) : null}
 
           <div className="details-card">
+
+          {canManageAttachments ? (
+            <div className="details-card">
+              <div className="section-title-row">
+                <div>
+                  <h2>Счета</h2>
+                  <p>Поле для загрузки счетов.</p>
+                </div>
+              </div>
+              <AttachmentUpload
+                requestId={request.id}
+                onUploaded={() => setAttachmentsRefreshKey((value) => value + 1)}
+              />
+              <AttachmentList
+                requestId={request.id}
+                refreshKey={attachmentsRefreshKey}
+                canDelete={canManageAttachments}
+              />
+            </div>
+          ) : null}
             <div className="section-title-row"><h2>Комментарии</h2></div>
             <form className="form-grid" onSubmit={handleCommentSubmit}>
               <div className="field field-wide">

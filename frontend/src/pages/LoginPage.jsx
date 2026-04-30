@@ -31,7 +31,7 @@ export function LoginPage() {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-card__header">
-          <span className="brand-badge">Система закупок Строитэк</span>
+          <span className="brand-badge">Система закупок Стройтэк</span>
           <h1>Вход в систему</h1>
           <p>Работайте с заявками, комментариями и этапами согласования в одном интерфейсе.</p>
         </div>

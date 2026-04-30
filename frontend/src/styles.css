@@ -447,3 +447,79 @@ th { color: #7f1d1d; font-size: .92rem; }
   color: var(--muted);
   line-height: 1.5;
 }
+
+.attachment-upload {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.attachment-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.attachment-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.attachment-item__info {
+  min-width: 0;
+}
+
+.attachment-item__info strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.attachment-item__info span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.button.small {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .attachment-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .attachment-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

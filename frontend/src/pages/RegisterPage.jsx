@@ -31,7 +31,7 @@ export function RegisterPage() {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-card__header">
-          <span className="brand-badge">Система закупок Строитэк</span>
+          <span className="brand-badge">АСБ</span>
           <h1>Регистрация</h1>
           <p>Создание новой учётной записи пользователя.</p>
         </div>
