@@ -3,10 +3,8 @@ services:
     image: postgres:16
     container_name: construction_db
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: construction_db
-      POSTGRES_USER: app_user
-      POSTGRES_PASSWORD: postgres
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -44,7 +42,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "127.0.0.1:8080:80"
 
 volumes:
   postgres_data:
