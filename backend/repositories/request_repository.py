@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from backend.repositories.agreement_material import AgreementMaterialRepository
 from backend.models.request import RequestDB, RequestMaterial
-from backend.models.enum import OrderStatusEnum, UserRoleEnum, ObjectsEnum
+from backend.models.enum import OrderStatusEnum, UserRoleEnum, ObjectsEnum, PaymentStatusEnum
 from backend.models.comment import CommentDB
 from backend.models.user import UserDB
 from backend.schemas.request_models import CommentCreate
@@ -36,6 +36,8 @@ class RequestRepository:
             status=OrderStatusEnum.DRAFT,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
+            request_type=data.request_type,
+            payment_status=PaymentStatusEnum.UNPAID,
         )
 
         self.db.add(request)

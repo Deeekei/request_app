@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime, timezone, date
 from enum import Enum
-from backend.models.enum import ObjectsEnum, UserRoleEnum, OrderStatusEnum
+from backend.models.enum import ObjectsEnum, UserRoleEnum, OrderStatusEnum, PaymentStatusEnum, RequestTypeEnum
 
 
 class OrderStatus(str, Enum):
@@ -46,6 +46,7 @@ class RequestCreate(RequestBase):
         default_factory=list,
         max_length=100
     )
+    request_type: RequestTypeEnum
 
 
 class RequestUpdate(BaseModel):
@@ -54,6 +55,7 @@ class RequestUpdate(BaseModel):
     request_materials: Optional[List["RequestMaterialCreate"]] = None
     section: Optional[str] = Field(None, max_length=10)
     delivery_date: Optional[date] = None
+    request_type: RequestTypeEnum | None = None
 
 
 class RequestRead(RequestBase):
@@ -68,8 +70,12 @@ class RequestRead(RequestBase):
     comments: List[CommentRead] = Field(default_factory=list)
     created_at: datetime
     updated_at: Optional[datetime] = None
-
+    payment_status: PaymentStatusEnum
+    request_type: RequestTypeEnum
     model_config = ConfigDict(from_attributes=True)
+
+class PaymentStatusUpdate(BaseModel):
+    payment_status: PaymentStatusEnum
 
 
 

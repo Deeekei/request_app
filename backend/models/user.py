@@ -14,10 +14,14 @@ class UserDB(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     role = Column(Enum(UserRoleEnum), nullable=False)
-    object = Column(Enum(ObjectsEnum), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Связи (строковые названия классов, чтобы избежать циклических импортов)
     requests_created = relationship("RequestDB", back_populates="author")
     comments = relationship("CommentDB", back_populates="user")
+    objects = relationship(
+        "ObjectsDB",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )

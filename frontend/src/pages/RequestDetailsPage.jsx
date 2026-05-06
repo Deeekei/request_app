@@ -8,7 +8,7 @@ import { AttachmentUpload } from '../components/AttachmentUpload';
 import { MaterialsTable } from '../components/MaterialsTable';
 import { PageHeader } from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatDateTime, normalizeEnum, normalizeRole, statusTone } from '../utils/formatters';
+import { formatDate, formatDateTime, formatStatus, normalizeEnum, normalizeRole, statusTone } from '../utils/formatters';
 
 export function RequestDetailsPage() {
   const { token, user } = useAuth();
@@ -21,7 +21,8 @@ export function RequestDetailsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [attachmentsRefreshKey, setAttachmentsRefreshKey] = useState(0);
+  const [requestFilesRefreshKey, setRequestFilesRefreshKey] = useState(0);
+  const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
 
   async function loadRequest() {
     setIsLoading(true);
@@ -50,37 +51,41 @@ export function RequestDetailsPage() {
     заказчик: (approve) => requestApi.customerReview(token, requestId, approve, reviewComment),
   }), [requestId, reviewComment, token]);
 
-  const statusValue = normalizeEnum(request?.status);
-const isDraft = statusValue === 'черновик';
-const canEdit = isDraft && user?.id === request?.author_id;
-const canSubmit = canEdit;
-const canDelete = canEdit;
+  const statusValue = normalizeEnum(request?.status).toLowerCase();
+  const isDraft = statusValue === 'черновик';
+  const isRejected = statusValue === 'отклонено' || statusValue === 'отклонена';
+  const isApproved = statusValue === 'согласовано';
+  const canEdit = (isDraft || isRejected) && user?.id === request?.author_id;
+  const canSubmit = canEdit;
+  const canDelete = isDraft && user?.id === request?.author_id;
 
-const rawResponsible = normalizeRole(
-  request?.current_responsible?.value || request?.current_responsible
-);
+  const rawResponsible = normalizeRole(
+    request?.current_responsible?.value || request?.current_responsible
+  );
 
-const currentResponsible = rawResponsible === 'снабжение' && statusValue === 'согласовано'
-  ? 'Снабжение'
-  : (rawResponsible || '—');
+  const currentResponsible = rawResponsible === 'снабжение' && isApproved
+    ? 'Снабжение'
+    : (rawResponsible || '—');
 
-const userRole = normalizeRole(user?.role);
+  const userRole = normalizeRole(user?.role);
 
-const canReview = userRole === 'администратор'
-  ? ['пто', 'директор', 'заказчик'].includes(rawResponsible)
-  : Boolean(roleActions[userRole]) && rawResponsible === userRole;
+  const canReview = userRole === 'администратор'
+    ? ['пто', 'директор', 'заказчик'].includes(rawResponsible)
+    : Boolean(roleActions[userRole]) && rawResponsible === userRole;
 
-const hasOverdraftMaterials = Array.isArray(request?.materials)
-  && request.materials.some((item) => Boolean(item.overdraft ?? item.will_overdraft));
+  const hasOverdraftMaterials = Array.isArray(request?.materials)
+    && request.materials.some((item) => Boolean(item.overdraft ?? item.will_overdraft));
 
-const canDownloadExcel = ['исполнитель', 'снабжение', 'администратор'].includes(userRole) && statusValue === 'согласовано';
-const canManageAttachments = ['исполнитель', 'снабжение', 'executor'].includes(userRole) && statusValue === 'согласовано';
+  const canDownloadExcel = ['исполнитель', 'снабжение', 'администратор'].includes(userRole) && isApproved;
+  const canManageRequestFiles = user?.id === request?.author_id && (isDraft || isRejected);
+  const canManageInvoices = ['исполнитель', 'снабжение', 'executor'].includes(userRole) && isApproved;
+  const canUpdatePayment = canManageInvoices;
 
   async function handleSubmitRequest() {
     try {
       setSuccess('');
       await requestApi.submit(token, requestId);
-      setSuccess('Заявка отправлена на согласование.');
+      setSuccess(isRejected ? 'Заявка повторно отправлена на согласование.' : 'Заявка отправлена на согласование.');
       await loadRequest();
     } catch (err) {
       setError(err.message);
@@ -137,6 +142,18 @@ const canManageAttachments = ['исполнитель', 'снабжение', 'e
     }
   }
 
+  async function handlePaymentStatusChange(paymentStatus) {
+    try {
+      setSuccess('');
+      setError('');
+      const updated = await requestApi.updatePaymentStatus(token, requestId, paymentStatus);
+      setRequest(updated);
+      setSuccess('Статус оплаты обновлён.');
+    } catch (err) {
+      setError(err.message || 'Не удалось изменить статус оплаты.');
+    }
+  }
+
   async function handleReview(approve) {
     try {
       setSuccess('');
@@ -155,7 +172,7 @@ const canManageAttachments = ['исполнитель', 'снабжение', 'e
     <section className="page-section">
       <PageHeader
         title={request?.title || 'Карточка заявки'}
-        subtitle="Детальная информация по заявке, материалам и истории согласования."
+        subtitle="Детальная информация по заявке, материалам, файлам и истории согласования."
         actions={
           <div className="actions-row">
             <Link className="button ghost" to="/requests">К списку</Link>
@@ -173,11 +190,11 @@ const canManageAttachments = ['исполнитель', 'снабжение', 'e
           <div className="details-card">
             <div className="details-card__head">
               <div className="meta-line wrap">
-                <span className={`pill ${statusTone(request.status)}`}>{normalizeEnum(request.status)}</span>
+                <span className={`pill ${statusTone(request.status)}`}>{formatStatus(request.status)}</span>
                 <span className="muted-pill">Ответственный: {currentResponsible}</span>
               </div>
               <div className="actions-row">
-                {canSubmit ? <button className="button primary" type="button" onClick={handleSubmitRequest}>Отправить на согласование</button> : null}
+                {canSubmit ? <button className="button primary" type="button" onClick={handleSubmitRequest}>{isRejected ? 'Повторно отправить' : 'Отправить на согласование'}</button> : null}
                 {canDownloadExcel ? <button className="button secondary" type="button" onClick={handleDownloadExcel}>Скачать Excel</button> : null}
                 {canDelete ? <button className="button danger" type="button" onClick={handleDeleteRequest}>Удалить черновик</button> : null}
               </div>
@@ -187,16 +204,31 @@ const canManageAttachments = ['исполнитель', 'снабжение', 'e
               <div><span>ID</span><strong>{request.id}</strong></div>
               <div><span>Автор</span><strong>{request.author_name}</strong></div>
               <div><span>Объект</span><strong>{normalizeEnum(request.object)}</strong></div>
+              <div><span>Тип заявки</span><strong>{normalizeEnum(request.request_type)}</strong></div>
+              <div><span>Оплата</span><strong>{normalizeEnum(request.payment_status)}</strong></div>
               <div><span>Шифр проекта</span><strong>{request.agreement}</strong></div>
-              <div><span>Секция</span><strong>{request.section || "—"}</strong></div>
-              <div><span>Дата доставки</span><strong>{request.delivery_date ? formatDate(request.delivery_date) : "—"}</strong></div>
+              <div><span>Секция</span><strong>{request.section || '—'}</strong></div>
+              <div><span>Дата доставки</span><strong>{request.delivery_date ? formatDate(request.delivery_date) : '—'}</strong></div>
               <div><span>Создано</span><strong>{formatDateTime(request.created_at)}</strong></div>
               <div><span>Обновлено</span><strong>{formatDateTime(request.updated_at)}</strong></div>
             </div>
 
+            {canUpdatePayment ? (
+              <div className="field payment-status-field">
+                <label>Изменить оплату</label>
+                <select
+                  value={typeof request.payment_status === 'string' ? request.payment_status : request.payment_status?.value || 'UNPAID'}
+                  onChange={(event) => handlePaymentStatusChange(event.target.value)}
+                >
+                  <option value="Неоплачено">Неоплачено</option>
+                  <option value="Оплачено">Оплачено</option>
+                </select>
+              </div>
+            ) : null}
+
             <div className="description-box">
               <h2>Примечание</h2>
-              <p>{request.description || "—"}</p>
+              <p>{request.description || '—'}</p>
             </div>
           </div>
 
@@ -228,26 +260,58 @@ const canManageAttachments = ['исполнитель', 'снабжение', 'e
           ) : null}
 
           <div className="details-card">
+            <div className="section-title-row">
+              <div>
+                <h2>Файлы заявки</h2>
+                <p>Файлы, прикреплённые автором при создании или редактировании заявки.</p>
+              </div>
+            </div>
+            {canManageRequestFiles ? (
+              <AttachmentUpload
+                requestId={request.id}
+                attachmentType="REQUEST_FILE"
+                title="Добавить файл заявки"
+                buttonLabel="Загрузить файл"
+                onUploaded={() => setRequestFilesRefreshKey((value) => value + 1)}
+              />
+            ) : null}
+            <AttachmentList
+              requestId={request.id}
+              attachmentType="REQUEST_FILE"
+              refreshKey={requestFilesRefreshKey}
+              canDelete={canManageRequestFiles}
+              emptyText="Файлы заявки пока не прикреплены."
+            />
+          </div>
 
-          {canManageAttachments ? (
+          {canManageInvoices || isApproved ? (
             <div className="details-card">
               <div className="section-title-row">
                 <div>
                   <h2>Счета</h2>
-                  <p>Поле для загрузки счетов.</p>
+                  <p>Счета добавляет Снабжение после полного согласования заявки.</p>
                 </div>
               </div>
-              <AttachmentUpload
-                requestId={request.id}
-                onUploaded={() => setAttachmentsRefreshKey((value) => value + 1)}
-              />
+              {canManageInvoices ? (
+                <AttachmentUpload
+                  requestId={request.id}
+                  attachmentType="INVOICE"
+                  title="Добавить счёт"
+                  buttonLabel="Загрузить счёт"
+                  onUploaded={() => setInvoiceRefreshKey((value) => value + 1)}
+                />
+              ) : null}
               <AttachmentList
                 requestId={request.id}
-                refreshKey={attachmentsRefreshKey}
-                canDelete={canManageAttachments}
+                attachmentType="INVOICE"
+                refreshKey={invoiceRefreshKey}
+                canDelete={canManageInvoices}
+                emptyText="Счета пока не прикреплены."
               />
             </div>
           ) : null}
+
+          <div className="details-card">
             <div className="section-title-row"><h2>Комментарии</h2></div>
             <form className="form-grid" onSubmit={handleCommentSubmit}>
               <div className="field field-wide">

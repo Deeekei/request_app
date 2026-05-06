@@ -523,3 +523,48 @@ th { color: #7f1d1d; font-size: .92rem; }
     flex-wrap: wrap;
   }
 }
+
+.attachment-upload__label {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.attachment-selected {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.form-success {
+  margin: 0;
+  color: #047857;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.payment-status-field {
+  margin-top: 18px;
+  max-width: 340px;
+}
+
+.selected-files-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.selected-files-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.selected-files-list__item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

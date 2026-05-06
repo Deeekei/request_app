@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from backend.services.push_service import send_push_to_users
-from backend.models.enum import OrderStatusEnum, UserRoleEnum
+from backend.models.enum import OrderStatusEnum, UserRoleEnum, PaymentStatusEnum
 from backend.models.user import UserDB
 from backend.repositories.request_repository import RequestRepository
 from backend.repositories.agreement_material import AgreementMaterialRepository
@@ -85,8 +85,8 @@ class RequestService:
             raise ValueError("Заявка не найдена")
         if current_user.id != request.author_id:
             raise PermissionError("Только автор заявки может редактировать заявку")
-        if request.status != OrderStatusEnum.DRAFT:
-            raise ValueError("Редактировать можно только черновик")
+        if request.status not in [OrderStatusEnum.DRAFT, OrderStatusEnum.REJECTED]:
+            raise ValueError("Редактировать можно только черновик или отклоненную заявку")
         try :
             self.request_repo.update_draft_fields(request = request, title=data.title, description=data.description)
             if data.request_materials is not None:
@@ -104,7 +104,7 @@ class RequestService:
             raise ValueError("Заявка не найдена")
         if current_user.id != request.author_id:
             raise PermissionError("Только автор может отправить заявку")
-        if request.status != OrderStatusEnum.DRAFT:
+        if request.status not in [OrderStatusEnum.DRAFT, OrderStatusEnum.REJECTED]:
             raise ValueError(f"Нельзя отправить заявку в статусе {request.status.value}")
 
         try:
@@ -220,7 +220,11 @@ class RequestService:
             raise ValueError("Заявка не найдена")
         if request.status != OrderStatusEnum.CUSTOMER_CHECK:
             raise ValueError("Заявка не на проверке у Заказчика")
-        if request.object != current_user.object:
+        user_objects = {
+            obj.name if hasattr(obj.name, "value") else obj.name
+            for obj in current_user.objects
+        }
+        if request.object not in user_objects:
             raise ValueError("Заявка не по вашему обьекту")
         try:
             if approve:
@@ -289,3 +293,40 @@ class RequestService:
         except Exception:
             self.db.rollback()
             raise
+
+    def update_payment_status(
+        self,
+        request_id: int,
+        payment_status: PaymentStatusEnum,
+        current_user: UserDB,
+    ):
+        request = self.request_repo.get_by_id(request_id)
+
+        if not request:
+            raise ValueError("Заявка не найдена")
+
+        if current_user.role != UserRoleEnum.EXECUTOR:
+            raise ValueError("Изменять оплату может только Снабжение")
+
+        if request.status != OrderStatusEnum.APPROVED:
+            raise ValueError("Оплату можно менять только у согласованной заявки")
+
+        request.payment_status = payment_status
+
+        body = (
+            "Статус оплаты изменён на: Оплачено"
+            if payment_status == PaymentStatusEnum.PAID
+            else "Статус оплаты изменён на: Неоплачено"
+        )
+
+        self.request_repo.add_comment(
+            request=request,
+            user_id=current_user.id,
+            user_name=current_user.full_name,
+            body=body,
+        )
+
+        self.db.commit()
+        self.db.refresh(request)
+
+        return request

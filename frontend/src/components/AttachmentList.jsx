@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { attachmentApi } from '../api/attachmentApi';
 import { useAuth } from '../context/AuthContext';
+import { normalizeEnum } from '../utils/formatters';
 
 function formatFileSize(bytes) {
   if (!bytes) return '0 Б';
@@ -17,7 +18,13 @@ function getFileNameFromDisposition(header) {
   return plainMatch?.[1] || null;
 }
 
-export function AttachmentList({ requestId, refreshKey = 0, canDelete = false }) {
+export function AttachmentList({
+  requestId,
+  refreshKey = 0,
+  canDelete = false,
+  attachmentType = null,
+  emptyText = 'Файлы пока не прикреплены.',
+}) {
   const { token } = useAuth();
   const [attachments, setAttachments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +34,7 @@ export function AttachmentList({ requestId, refreshKey = 0, canDelete = false })
     try {
       setIsLoading(true);
       setError('');
-      const data = await attachmentApi.list(token, requestId);
+      const data = await attachmentApi.list(token, requestId, attachmentType);
       setAttachments(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message || 'Не удалось загрузить список файлов.');
@@ -40,7 +47,7 @@ export function AttachmentList({ requestId, refreshKey = 0, canDelete = false })
     if (requestId && token) {
       loadAttachments();
     }
-  }, [requestId, refreshKey, token]);
+  }, [requestId, refreshKey, token, attachmentType]);
 
   async function handleDownload(file) {
     try {
@@ -81,13 +88,14 @@ export function AttachmentList({ requestId, refreshKey = 0, canDelete = false })
       {error ? <p className="form-error">{error}</p> : null}
 
       {!attachments.length ? (
-        <div className="empty-box">Файлы пока не прикреплены.</div>
+        <div className="empty-box">{emptyText}</div>
       ) : (
         attachments.map((file) => (
           <div className="attachment-item" key={file.id}>
             <div className="attachment-item__info">
               <strong>{file.original_name}</strong>
               <span>{formatFileSize(file.size_bytes)}</span>
+              {file.attachment_type ? <span>{normalizeEnum(file.attachment_type)}</span> : null}
             </div>
             <div className="attachment-actions">
               <button className="button secondary small" type="button" onClick={() => handleDownload(file)}>

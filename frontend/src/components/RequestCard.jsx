@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
-import { formatDateTime, normalizeEnum, statusTone } from '../utils/formatters';
+import { formatDateTime, formatStatus, normalizeEnum, statusTone } from '../utils/formatters';
 
 export function RequestCard({ request }) {
-  const isDraft = normalizeEnum(request.status) === 'черновик';
+  const isDraft = normalizeEnum(request.status).toLowerCase() === 'черновик';
 
   return (
     <article className="request-card">
@@ -10,7 +10,7 @@ export function RequestCard({ request }) {
         <div>
           <h3>{request.title}</h3>
           <div className="meta-line wrap">
-            <span className={`pill ${statusTone(request.status)}`}>{normalizeEnum(request.status)}</span>
+            <span className={`pill ${statusTone(request.status)}`}>{formatStatus(request.status)}</span>
             <span className="muted-pill">
               Ответственный: {normalizeEnum(request.current_responsible)}
             </span>
@@ -19,13 +19,15 @@ export function RequestCard({ request }) {
         <div className="request-card__id">#{request.id}</div>
       </div>
 
-      <p className="request-card__description">{request.description || "Примечание не указано"}</p>
+      <p className="request-card__description">{request.description || 'Примечание не указано'}</p>
 
       <div className="meta-grid">
         <span><strong>Автор:</strong> {request.author_name}</span>
         <span><strong>Объект:</strong> {normalizeEnum(request.object)}</span>
+        <span><strong>Тип:</strong> {normalizeEnum(request.request_type)}</span>
+        <span><strong>Оплата:</strong> {normalizeEnum(request.payment_status)}</span>
         <span><strong>Шифр проекта:</strong> {request.agreement}</span>
-        <span><strong>Секция:</strong> {request.section || "—"}</span>
+        <span><strong>Секция:</strong> {request.section || '—'}</span>
         <span><strong>Дата доставки:</strong> {formatDateTime(request.delivery_date)}</span>
         <span><strong>Создано:</strong> {formatDateTime(request.created_at)}</span>
       </div>

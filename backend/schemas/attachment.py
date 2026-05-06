@@ -1,10 +1,12 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
+from backend.models.enum import AttachmentTypeEnum
 
 
 class AttachmentRead(BaseModel):
     id: int
     request_id: int
+    attachment_type: AttachmentTypeEnum
     original_name: str
     content_type: str | None = None
     size_bytes: int

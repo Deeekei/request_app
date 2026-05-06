@@ -3,7 +3,7 @@ from sqlalchemy import Column, Integer, Float, String, DateTime, Boolean, Enum, 
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.database import Base
-from backend.models.enum import OrderStatusEnum, UserRoleEnum, ObjectsEnum
+from backend.models.enum import OrderStatusEnum, UserRoleEnum, ObjectsEnum, PaymentStatusEnum, RequestTypeEnum
 from backend.models.agreement import AgreementMaterial
 
 
@@ -42,6 +42,16 @@ class RequestDB(Base):
 
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     author_name = Column(String, nullable=False)
+    payment_status = Column(
+        Enum(PaymentStatusEnum),
+        nullable=False,
+        default=PaymentStatusEnum.UNPAID,
+    )
+
+    request_type = Column(
+        Enum(RequestTypeEnum),
+        nullable=False
+    )
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

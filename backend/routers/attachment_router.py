@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from backend.models.enum import AttachmentTypeEnum, OrderStatusEnum, UserRoleEnum
 from backend.database import get_db
 from backend.models.attachment import AttachmentDB
 from backend.models.request import RequestDB
@@ -31,19 +32,13 @@ ALLOWED_CONTENT_TYPES = {
     "application/vnd.ms-excel",
 }
 
-
-@router.post("/requests/{request_id}", response_model=AttachmentRead)
-async def upload_attachment(
+async def save_attachment_file(
+    *,
     request_id: int,
-    file: UploadFile = File(...),
-    current_user: UserDB = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    request = db.query(RequestDB).filter(RequestDB.id == request_id).first()
-
-    if not request:
-        raise HTTPException(status_code=404, detail="Заявка не найдена")
-
+    file: UploadFile,
+    attachment_type: AttachmentTypeEnum,
+    db: Session,
+) -> AttachmentDB:
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail="Недопустимый тип файла")
 
@@ -57,7 +52,7 @@ async def upload_attachment(
     extension = Path(original_name).suffix
     stored_name = f"{uuid.uuid4().hex}{extension}"
 
-    request_dir = UPLOAD_DIR / str(request_id)
+    request_dir = UPLOAD_DIR / str(request_id) / attachment_type.value.lower()
     request_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = request_dir / stored_name
@@ -67,6 +62,7 @@ async def upload_attachment(
 
     attachment = AttachmentDB(
         request_id=request_id,
+        attachment_type=attachment_type,
         original_name=original_name,
         stored_name=stored_name,
         file_path=str(file_path),
@@ -80,20 +76,70 @@ async def upload_attachment(
 
     return attachment
 
+@router.post("/requests/{request_id}/files", response_model=AttachmentRead)
+async def upload_request_file(
+    request_id: int,
+    file: UploadFile = File(...),
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    request = db.query(RequestDB).filter(RequestDB.id == request_id).first()
+
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    if request.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Файл может добавить только автор заявки")
+
+    if request.status not in [OrderStatusEnum.DRAFT, OrderStatusEnum.REJECTED]:
+        raise HTTPException(status_code=400, detail="Файлы можно добавлять только в черновик или отклонённую заявку")
+
+    return await save_attachment_file(
+        request_id=request_id,
+        file=file,
+        attachment_type=AttachmentTypeEnum.REQUEST_FILE,
+        db=db,
+    )
+
+@router.post("/requests/{request_id}/invoices", response_model=AttachmentRead)
+async def upload_invoice(
+    request_id: int,
+    file: UploadFile = File(...),
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    request = db.query(RequestDB).filter(RequestDB.id == request_id).first()
+
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    if current_user.role != UserRoleEnum.EXECUTOR:
+        raise HTTPException(status_code=403, detail="Счёт может добавить только Снабжение")
+
+    if request.status != OrderStatusEnum.APPROVED:
+        raise HTTPException(status_code=400, detail="Счёт можно добавить только к согласованной заявке")
+
+    return await save_attachment_file(
+        request_id=request_id,
+        file=file,
+        attachment_type=AttachmentTypeEnum.INVOICE,
+        db=db,
+    )
+
 
 @router.get("/requests/{request_id}", response_model=list[AttachmentRead])
 async def list_request_attachments(
     request_id: int,
+    attachment_type: AttachmentTypeEnum | None = None,
     current_user: UserDB = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return (
-        db.query(AttachmentDB)
-        .filter(AttachmentDB.request_id == request_id)
-        .order_by(AttachmentDB.uploaded_at.desc())
-        .all()
-    )
+    query = db.query(AttachmentDB).filter(AttachmentDB.request_id == request_id)
 
+    if attachment_type is not None:
+        query = query.filter(AttachmentDB.attachment_type == attachment_type)
+
+    return query.order_by(AttachmentDB.uploaded_at.desc()).all()
 
 @router.get("/{attachment_id}/download")
 async def download_attachment(
@@ -102,6 +148,8 @@ async def download_attachment(
     db: Session = Depends(get_db),
 ):
     attachment = db.query(AttachmentDB).filter(AttachmentDB.id == attachment_id).first()
+    if not attachment.request:
+        raise HTTPException(status_code=404, detail="Заявка для файла не найдена")
 
     if not attachment:
         raise HTTPException(status_code=404, detail="Файл не найден")
@@ -126,6 +174,28 @@ async def delete_attachment(
 
     if not attachment:
         raise HTTPException(status_code=404, detail="Файл не найден")
+
+    request = attachment.request
+
+    if attachment.attachment_type == AttachmentTypeEnum.REQUEST_FILE:
+        if request.author_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Удалить файл может только автор заявки")
+
+        if request.status not in [OrderStatusEnum.DRAFT, OrderStatusEnum.REJECTED]:
+            raise HTTPException(
+                status_code=400,
+                detail="Файлы заявки можно удалять только в черновике или отклонённой заявке",
+            )
+
+    elif attachment.attachment_type == AttachmentTypeEnum.INVOICE:
+        if current_user.role != UserRoleEnum.EXECUTOR:
+            raise HTTPException(status_code=403, detail="Удалить счёт может только Снабжение")
+
+        if request.status != OrderStatusEnum.APPROVED:
+            raise HTTPException(
+                status_code=400,
+                detail="Счёт можно удалить только у согласованной заявки",
+            )
 
     if os.path.exists(attachment.file_path):
         os.remove(attachment.file_path)

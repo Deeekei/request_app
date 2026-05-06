@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { attachmentApi } from '../api/attachmentApi';
 import { requestApi } from '../api/requestApi';
 import { Alert } from '../components/Alert';
 import { MaterialFieldArray } from '../components/MaterialFieldArray';
@@ -10,8 +11,30 @@ const objectOptions = [
   { value: 'ЖК "Аурика"', label: 'ЖК "Аурика"' },
   { value: 'ЖК "Аурум"', label: 'ЖК "Аурум"' },
   { value: 'ЖК "Максимус"', label: 'ЖК "Максимус"' },
+  { value: 'Административно-деловой центр', label: 'Административно-деловой центр' },
+  { value: 'Жилой дом в г. Лермонтов', label: 'Жилой дом в г. Лермонтов' },
+  { value: 'Комплекс производственных зданий в д. Карпово', label: 'Комплекс производственных зданий в д. Карпово' },
+  { value: 'Фитнесс-центр с бассейном в ЖК Старый Центр', label: 'Фитнесс-центр с бассейном в ЖК Старый Центр' },
+  { value: 'Туристический центр по ул. Менделеева', label: 'Туристический центр по ул. Менделеева' },
+  { value: 'Вертолетный центр (Хелипорт)', label: 'Вертолетный центр (Хелипорт)' },
+  { value: 'МБУ ДО СШОР №33', label: 'МБУ ДО СШОР №33' },
+  { value: 'Объект культурного наследия по ул. М. Карима, 3', label: 'Объект культурного наследия по ул. М. Карима, 3' },
+  { value: 'Приют человека', label: 'Приют человека' },
+  { value: 'ЖК "Свобода"', label: 'ЖК "Свобода"' },
+  { value: 'ЖК "Старый центр"', label: 'ЖК "Старый центр"' },
+  { value: 'Комплекс МКД с.Михайловка', label: 'Комплекс МКД с.Михайловка' },
+  { value: 'ППТ квартала по ул. Менделеева', label: 'ППТ квартала по ул. Менделеева' },
+  { value: 'Комплекс МКД в с. Молочное', label: 'Комплекс МКД в с. Молочное' },
+  { value: 'Апартаменты в г. Евпатория', label: 'Апартаменты в г. Евпатория' },
+  { value: 'КРТ Д.Атаевка', label: 'КРТ Д.Атаевка' },
+  { value: 'КРТ п. Базилевка', label: 'КРТ п. Базилевка' },
 ];
 
+const requestTypeOptions = [
+  { value: 'Давальческие', label: 'Давальческие' },
+  { value: 'Собственные', label: 'Собственные' },
+  { value: 'Хозяйственные', label: 'Хозяйственные' },
+];
 
 function generateRowKey() {
   return globalThis.crypto?.randomUUID?.() ?? `row_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -99,9 +122,11 @@ export function RequestFormPage({ mode }) {
     section: '',
     delivery_date: '',
     object: 'ЖК "Аурика"',
+    request_type: 'Собственные',
     request_materials: [createEmptyRow()],
   });
 
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(mode === 'edit');
   const [isSaving, setIsSaving] = useState(false);
@@ -123,6 +148,7 @@ export function RequestFormPage({ mode }) {
           section: data.section || '',
           delivery_date: normalizeDateForInput(data.delivery_date),
           object: typeof data.object === 'string' ? data.object : data.object?.value,
+          request_type: typeof data.request_type === 'string' ? data.request_type : (data.request_type?.value || 'Собственные'),
           request_materials: (data.materials || []).length
             ? data.materials.map(mapMaterialToFormRow)
             : [createEmptyRow()],
@@ -233,6 +259,15 @@ export function RequestFormPage({ mode }) {
     }));
   }
 
+  function handleSelectedFilesChange(event) {
+    setSelectedFiles(Array.from(event.target.files || []));
+  }
+
+  function removeSelectedFile(index) {
+    setSelectedFiles((prev) => prev.filter((_, fileIndex) => fileIndex !== index));
+  }
+
+
   function validateForm() {
     if (!form.title.trim()) return 'Укажите название заявки';
     if (!form.agreement.trim()) return 'Укажите шифр проекта';
@@ -282,6 +317,7 @@ export function RequestFormPage({ mode }) {
       section: form.section.trim(),
       delivery_date: form.delivery_date,
       object: form.object,
+      request_type: form.request_type,
       request_materials: form.request_materials
         .map(buildMaterialPayload)
         .filter(Boolean),
@@ -291,6 +327,12 @@ export function RequestFormPage({ mode }) {
       const saved = mode === 'edit'
         ? await requestApi.update(token, requestId, payload)
         : await requestApi.create(token, payload);
+
+      if (selectedFiles.length) {
+        for (const file of selectedFiles) {
+          await attachmentApi.uploadRequestFile(token, saved.id, file);
+        }
+      }
 
       navigate(`/requests/${saved.id}`);
     } catch (err) {
@@ -372,6 +414,38 @@ export function RequestFormPage({ mode }) {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="field">
+                <label>Тип заявки</label>
+                <select
+                  value={form.request_type}
+                  onChange={(e) => setForm((p) => ({ ...p, request_type: e.target.value }))}
+                >
+                  {requestTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field field-wide">
+                <label>Файлы заявки</label>
+                <input type="file" multiple onChange={handleSelectedFilesChange} />
+                <p className="attachment-hint">Файлы будут прикреплены после сохранения заявки.</p>
+                {selectedFiles.length ? (
+                  <div className="selected-files-list">
+                    {selectedFiles.map((file, index) => (
+                      <div className="selected-files-list__item" key={`${file.name}_${file.size}_${index}`}>
+                        <span>{file.name}</span>
+                        <button type="button" className="button ghost small" onClick={() => removeSelectedFile(index)}>
+                          Убрать
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

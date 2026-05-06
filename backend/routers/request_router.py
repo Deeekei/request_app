@@ -4,7 +4,7 @@ from typing import List, Optional
 from multipart import file_path
 
 from backend.schemas.request_models import RequestCreate, RequestUpdate, RequestRead
-from backend.schemas.request_models import CommentRead
+from backend.schemas.request_models import CommentRead, PaymentStatusUpdate
 from backend.routers.auth_router import get_current_user, require_pto, require_director, require_customer
 from backend.schemas.request_models import CommentCreate
 from backend.models.request import RequestDB
@@ -77,6 +77,8 @@ def to_request_read(req) -> RequestRead:
             "updated_at": req.updated_at,
             "materials": materials,
             "comments": comments,
+            "payment_status": req.payment_status,
+            "request_type": req.request_type
         }
     )
 def spend_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session):
@@ -355,3 +357,20 @@ async def get_exel(request_id: int, current_user: UserDB = Depends(require_execu
         filename=f"Заявка_{request_id}.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+@router.patch("/{request_id}/payment-status", response_model=RequestRead)
+async def update_payment_status(
+    request_id: int,
+    payload: PaymentStatusUpdate,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db)
+    ):
+    service = RequestService(db)
+    try:
+        return service.update_payment_status(
+            request_id=request_id,
+            payment_status=payload.payment_status,
+            current_user=current_user,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

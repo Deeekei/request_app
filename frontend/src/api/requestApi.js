@@ -108,6 +108,14 @@ export const requestApi = {
     });
   },
 
+  updatePaymentStatus(token, requestId, paymentStatus) {
+    return apiRequest(`/requests/${requestId}/payment-status`, {
+      method: 'PATCH',
+      headers: buildAuthHeaders(token),
+      body: JSON.stringify({ payment_status: paymentStatus }),
+    });
+  },
+
   downloadExcel(token, requestId) {
     return fetch(`${API_BASE_URL}/requests/${requestId}/excel`, {
       method: 'GET',
