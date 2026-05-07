@@ -94,7 +94,7 @@ export function DashboardPage() {
           </select>
         </div>
 
-        {!isRegularUser ? (
+        {!isRegularUser && (
           <div className="field">
             <label>ID заявки</label>
             <input
@@ -102,11 +102,6 @@ export function DashboardPage() {
               onChange={(e) => setFilters((prev) => ({ ...prev, request_id: e.target.value.replace(/[^0-9]/g, '') }))}
               placeholder="Например, 15"
             />
-          </div>
-        ) : (
-          <div className="summary-box">
-            <span>Показаны только ваши заявки</span>
-            <strong>{user?.id ?? '—'}</strong>
           </div>
         )}
 

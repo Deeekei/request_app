@@ -4,9 +4,23 @@ const OBJECT_TITLES = {
   AURIKA: 'ЖК "Аурика"',
   AURUM: 'ЖК "Аурум"',
   MAXIMUS: 'ЖК "Максимус"',
-  аурика: 'ЖК "Аурика"',
-  аурум: 'ЖК "Аурум"',
-  максимус: 'ЖК "Максимус"',
+  ADC: 'Административно-деловой центр',
+  LERMONTOV: 'Жилой дом в г. Лермонтов',
+  KPZ: 'Комплекс производственных зданий в д. Карпово',
+  POOL: 'Фитнесс-центр с бассейном в ЖК Старый Центр',
+  TOURIST: 'Туристический центр по ул. Менделеева',
+  HELICOPTER: 'Вертолетный центр (Хелипорт)',
+  SHOR: 'МБУ ДО СШОР №33',
+  KULTUR: 'Объект культурного наследия по ул. М. Карима, 3',
+  UFADOBRAYA: 'Приют человека',
+  SVOBODA: 'ЖК "Свобода"',
+  CENTER: 'ЖК "Старый центр"',
+  MIHAILOVKA: 'Комплекс МКД с.Михайловка',
+  PPT: 'ППТ квартала по ул. Менделеева',
+  MOLOCHNOE: 'Комплекс МКД в с. Молочное',
+  EVPATORIA: 'Апартаменты в г. Евпатория',
+  ATAEVKA: 'КРТ Д.Атаевка',
+  BAZILEEVKA: 'КРТ п. Базилевка',
 };
 
 const MANUAL_OPTION_VALUE = '__manual__';
@@ -41,8 +55,6 @@ function MaterialSearchSelect({
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    // При ручном вводе не подставляем в поисковое поле текст «Ввести вручную».
-    // Иначе фильтр начинает искать эту фразу и скрывает остальные материалы.
     if (value === MANUAL_OPTION_VALUE) {
       if (!isOpen && query) {
         setQuery('');
@@ -55,8 +67,6 @@ function MaterialSearchSelect({
       return;
     }
 
-    // Во время поиска parent-компонент сбрасывает выбранный material_id.
-    // Не стираем query в этот момент, иначе ввод пропадает после первой буквы.
     if (!isOpen) {
       setQuery('');
     }
@@ -96,18 +106,19 @@ function MaterialSearchSelect({
 
   function handleSelect(optionId) {
     const option = materialOptions.find((item) => String(item.id) === String(optionId));
+
     if (option) {
       setQuery(option.name);
     }
+
     onChange(optionId);
     setIsOpen(false);
   }
 
   function handleManualSelect() {
-    // Включаем ручной ввод, но оставляем список материалов доступным.
     setQuery('');
     onChange(MANUAL_OPTION_VALUE);
-    setIsOpen(true);
+    setIsOpen(false);
   }
 
   function handleBlur() {
@@ -119,6 +130,7 @@ function MaterialSearchSelect({
       } else {
         setQuery(selectedName);
       }
+
       setIsOpen(false);
     }, 120);
   }
@@ -137,7 +149,7 @@ function MaterialSearchSelect({
           isLoading
             ? 'Загрузка материалов...'
             : value === MANUAL_OPTION_VALUE
-              ? 'Ручной ввод включён. Можно продолжить поиск материала'
+              ? 'Ручной ввод включён'
               : 'Начните вводить название материала'
         }
         disabled={isLoading}
@@ -148,7 +160,9 @@ function MaterialSearchSelect({
       {dropdownVisible ? (
         <div className="material-combobox__menu" role="listbox">
           <button
-            className={`material-combobox__option material-combobox__option--manual${value === MANUAL_OPTION_VALUE ? ' is-selected' : ''}`}
+            className={`material-combobox__option material-combobox__option--manual${
+              value === MANUAL_OPTION_VALUE ? ' is-selected' : ''
+            }`}
             type="button"
             onMouseDown={(event) => event.preventDefault()}
             onClick={handleManualSelect}
@@ -194,16 +208,16 @@ export function MaterialFieldArray({
       <div className="section-title-row">
         <div>
           <h2>Материалы</h2>
+
           <p>
             Выберите материал по названию
-            {currentObject ? ` для объекта ${OBJECT_TITLES[currentObject] || currentObject}` : ''}.
-            {' '}Начните вводить название — список отфильтруется автоматически. Если нужного материала нет, выберите «Ввести вручную».
+            {currentObject
+              ? ` для объекта ${OBJECT_TITLES[currentObject] || currentObject}`
+              : ''}
+            . Начните вводить название — список отфильтруется автоматически.
+            Если нужного материала нет, выберите «Ввести вручную».
           </p>
         </div>
-
-        <button className="button secondary" type="button" onClick={onAdd}>
-          Добавить материал
-        </button>
       </div>
 
       <div className="stack-list">
@@ -222,7 +236,10 @@ export function MaterialFieldArray({
               - Number(selectedMaterial.spent_quantity || 0)
             : 0;
 
-          const willOverdraft = !isManual && selectedMaterial && requestedQty > availableQty;
+          const willOverdraft =
+            !isManual &&
+            selectedMaterial &&
+            requestedQty > availableQty;
 
           return (
             <div
@@ -233,11 +250,17 @@ export function MaterialFieldArray({
                 <label>Материал</label>
 
                 <MaterialSearchSelect
-                  value={isManual ? MANUAL_OPTION_VALUE : (row.agreement_material_id ?? '')}
+                  value={
+                    isManual
+                      ? MANUAL_OPTION_VALUE
+                      : (row.agreement_material_id ?? '')
+                  }
                   selectedMaterial={selectedMaterial}
                   materialOptions={materialOptions}
                   isLoading={isLoading}
-                  onChange={(nextValue) => onChange(index, 'material_selector', nextValue)}
+                  onChange={(nextValue) =>
+                    onChange(index, 'material_selector', nextValue)
+                  }
                 />
 
                 {!isManual && selectedMaterial ? (
@@ -245,23 +268,35 @@ export function MaterialFieldArray({
                     <span className="muted-pill">
                       Доступно: {availableQty} {selectedMaterial.unit || ''}
                     </span>
+
                     <span className="muted-pill">
-                      Всего: {selectedMaterial.total_quantity} {selectedMaterial.unit || ''}
+                      Всего: {selectedMaterial.total_quantity}{' '}
+                      {selectedMaterial.unit || ''}
                     </span>
+
                     <span className="muted-pill">
-                      Зарезервировано: {selectedMaterial.reserved_quantity} {selectedMaterial.unit || ''}
+                      Зарезервировано:{' '}
+                      {selectedMaterial.reserved_quantity}{' '}
+                      {selectedMaterial.unit || ''}
                     </span>
+
                     <span className="muted-pill">
-                      Списано: {selectedMaterial.spent_quantity} {selectedMaterial.unit || ''}
+                      Списано: {selectedMaterial.spent_quantity}{' '}
+                      {selectedMaterial.unit || ''}
                     </span>
                   </div>
                 ) : null}
 
                 {willOverdraft ? (
-                  <div className="alert error" style={{ marginTop: '10px' }}>
+                  <div
+                    className="alert error"
+                    style={{ marginTop: '10px' }}
+                  >
                     Внимание: при текущем количестве возникнет перерасход.
-                    Запрошено: {requestedQty} {selectedMaterial?.unit || ''},
-                    доступно: {availableQty} {selectedMaterial?.unit || ''}.
+                    Запрошено: {requestedQty}{' '}
+                    {selectedMaterial?.unit || ''},
+                    доступно: {availableQty}{' '}
+                    {selectedMaterial?.unit || ''}.
                   </div>
                 ) : null}
               </div>
@@ -270,10 +305,13 @@ export function MaterialFieldArray({
                 <>
                   <div className="field field-wide">
                     <label>Название материала</label>
+
                     <input
                       type="text"
                       value={row.manual_name || ''}
-                      onChange={(event) => onChange(index, 'manual_name', event.target.value)}
+                      onChange={(event) =>
+                        onChange(index, 'manual_name', event.target.value)
+                      }
                       placeholder="Введите название материала"
                       required
                       disabled={isLoading}
@@ -282,15 +320,22 @@ export function MaterialFieldArray({
 
                   <div className="field">
                     <label>Ед. изм.</label>
+
                     <select
                       value={row.manual_unit || ''}
-                      onChange={(event) => onChange(index, 'manual_unit', event.target.value)}
+                      onChange={(event) =>
+                        onChange(index, 'manual_unit', event.target.value)
+                      }
                       required
                       disabled={isLoading}
                     >
                       <option value="">Выберите ед. изм.</option>
+
                       {unitOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
+                        <option
+                          key={option.value}
+                          value={option.value}
+                        >
                           {option.label}
                         </option>
                       ))}
@@ -299,10 +344,13 @@ export function MaterialFieldArray({
 
                   <div className="field field-wide">
                     <label>Комментарий</label>
+
                     <input
                       type="text"
                       value={row.manual_comment || ''}
-                      onChange={(event) => onChange(index, 'manual_comment', event.target.value)}
+                      onChange={(event) =>
+                        onChange(index, 'manual_comment', event.target.value)
+                      }
                       placeholder="При необходимости укажите комментарий"
                       disabled={isLoading}
                     />
@@ -312,12 +360,15 @@ export function MaterialFieldArray({
 
               <div className="field">
                 <label>Количество</label>
+
                 <input
                   type="number"
                   min="0.01"
                   step="0.01"
                   value={row.quantity}
-                  onChange={(event) => onChange(index, 'quantity', event.target.value)}
+                  onChange={(event) =>
+                    onChange(index, 'quantity', event.target.value)
+                  }
                   required
                   disabled={isLoading}
                 />
@@ -336,6 +387,17 @@ export function MaterialFieldArray({
             </div>
           );
         })}
+      </div>
+
+      <div className="materials-actions">
+        <button
+          className="button secondary"
+          type="button"
+          onClick={onAdd}
+          disabled={isLoading}
+        >
+          Добавить материал
+        </button>
       </div>
     </div>
   );
