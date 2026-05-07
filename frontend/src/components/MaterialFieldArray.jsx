@@ -52,6 +52,7 @@ function MaterialSearchSelect({
   const rootRef = useRef(null);
   const inputRef = useRef(null);
   const selectedName = selectedMaterial?.name || '';
+
   const [query, setQuery] = useState(selectedName);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -60,6 +61,7 @@ function MaterialSearchSelect({
       if (!isOpen && query) {
         setQuery('');
       }
+
       return;
     }
 
@@ -81,7 +83,10 @@ function MaterialSearchSelect({
     }
 
     document.addEventListener('mousedown', handleDocumentMouseDown);
-    return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown);
+    };
   }, []);
 
   const filteredOptions = useMemo(() => {
@@ -106,7 +111,9 @@ function MaterialSearchSelect({
   }
 
   function handleSelect(optionId) {
-    const option = materialOptions.find((item) => String(item.id) === String(optionId));
+    const option = materialOptions.find(
+      (item) => String(item.id) === String(optionId)
+    );
 
     if (option) {
       setQuery(option.name);
@@ -117,13 +124,11 @@ function MaterialSearchSelect({
   }
 
   function handleManualSelect() {
-  setQuery('');
-  onChange(MANUAL_OPTION_VALUE);
-  setIsOpen(false);
-
-  // убираем курсор из поля поиска
-  inputRef.current?.blur();
-}
+    setQuery('');
+    setIsOpen(false);
+    inputRef.current?.blur();
+    onChange(MANUAL_OPTION_VALUE);
+  }
 
   function handleBlur() {
     window.setTimeout(() => {
@@ -144,7 +149,7 @@ function MaterialSearchSelect({
   return (
     <div className="material-combobox" ref={rootRef}>
       <input
-          ref={inputRef}
+        ref={inputRef}
         type="text"
         value={query}
         onChange={handleInputChange}
@@ -208,6 +213,18 @@ export function MaterialFieldArray({
   currentObject,
   isLoading = false,
 }) {
+  const manualInputRefs = useRef({});
+
+  function handleMaterialSelectorChange(index, nextValue) {
+    onChange(index, 'material_selector', nextValue);
+
+    if (nextValue === MANUAL_OPTION_VALUE) {
+      window.setTimeout(() => {
+        manualInputRefs.current[index]?.focus();
+      }, 0);
+    }
+  }
+
   return (
     <div className="stack-section">
       <div className="section-title-row">
@@ -264,7 +281,7 @@ export function MaterialFieldArray({
                   materialOptions={materialOptions}
                   isLoading={isLoading}
                   onChange={(nextValue) =>
-                    onChange(index, 'material_selector', nextValue)
+                    handleMaterialSelectorChange(index, nextValue)
                   }
                 />
 
@@ -293,15 +310,10 @@ export function MaterialFieldArray({
                 ) : null}
 
                 {willOverdraft ? (
-                  <div
-                    className="alert error"
-                    style={{ marginTop: '10px' }}
-                  >
+                  <div className="alert error" style={{ marginTop: '10px' }}>
                     Внимание: при текущем количестве возникнет перерасход.
-                    Запрошено: {requestedQty}{' '}
-                    {selectedMaterial?.unit || ''},
-                    доступно: {availableQty}{' '}
-                    {selectedMaterial?.unit || ''}.
+                    Запрошено: {requestedQty} {selectedMaterial?.unit || ''},
+                    доступно: {availableQty} {selectedMaterial?.unit || ''}.
                   </div>
                 ) : null}
               </div>
@@ -312,6 +324,9 @@ export function MaterialFieldArray({
                     <label>Название материала</label>
 
                     <input
+                      ref={(element) => {
+                        manualInputRefs.current[index] = element;
+                      }}
                       type="text"
                       value={row.manual_name || ''}
                       onChange={(event) =>
@@ -337,10 +352,7 @@ export function MaterialFieldArray({
                       <option value="">Выберите ед. изм.</option>
 
                       {unitOptions.map((option) => (
-                        <option
-                          key={option.value}
-                          value={option.value}
-                        >
+                        <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
                       ))}
