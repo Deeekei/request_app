@@ -50,6 +50,7 @@ function MaterialSearchSelect({
   isLoading,
 }) {
   const rootRef = useRef(null);
+  const inputRef = useRef(null);
   const selectedName = selectedMaterial?.name || '';
   const [query, setQuery] = useState(selectedName);
   const [isOpen, setIsOpen] = useState(false);
@@ -116,10 +117,13 @@ function MaterialSearchSelect({
   }
 
   function handleManualSelect() {
-    setQuery('');
-    onChange(MANUAL_OPTION_VALUE);
-    setIsOpen(false);
-  }
+  setQuery('');
+  onChange(MANUAL_OPTION_VALUE);
+  setIsOpen(false);
+
+  // убираем курсор из поля поиска
+  inputRef.current?.blur();
+}
 
   function handleBlur() {
     window.setTimeout(() => {
@@ -140,6 +144,7 @@ function MaterialSearchSelect({
   return (
     <div className="material-combobox" ref={rootRef}>
       <input
+          ref={inputRef}
         type="text"
         value={query}
         onChange={handleInputChange}
