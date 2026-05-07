@@ -34,7 +34,7 @@ export function AppLayout() {
     администратор: [
       <SidebarLink key="pto" to="/pto-review" onClick={closeMenu}>На проверке у ПТО</SidebarLink>,
       <SidebarLink key="director" to="/director-review" onClick={closeMenu}>На проверке у Директора АСБ</SidebarLink>,
-      <SidebarLink key="customer" to="/customer-review" onClick={closeMenu}>На проверке у Заказчика</SidebarLink>,
+      <SidebarLink key="customer" to="/customer-review" onClick={closeMenu}>На проверке у Руководителя проекта</SidebarLink>,
       <SidebarLink key="approved" to="/approved-requests" onClick={closeMenu}>Согласованные заявки</SidebarLink>,
     ],
   };
