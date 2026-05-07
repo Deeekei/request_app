@@ -86,7 +86,7 @@ export default function App() {
           element={
             <RoleRoute allowedRole="заказчик">
               <PendingPage
-                title="На проверке у Заказчика"
+                title="На проверке у Руководителя проекта"
                 subtitle="Заявки, ожидающие решения заказчика."
                 roleKey="customer"
               />
