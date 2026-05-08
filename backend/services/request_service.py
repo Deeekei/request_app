@@ -5,6 +5,7 @@ from backend.models.user import UserDB
 from backend.repositories.request_repository import RequestRepository
 from backend.repositories.agreement_material import AgreementMaterialRepository
 from backend.schemas.request_models import RequestUpdate, RequestCreate
+from datetime import date
 
 
 
@@ -329,4 +330,20 @@ class RequestService:
         self.db.commit()
         self.db.refresh(request)
 
+        return request
+
+    def set_real_delivery_date(self, request_id: int, current_user: UserDB, delivery_date: date):
+        request = self.request_repo.get_by_id(request_id)
+        if not request:
+            raise ValueError("Заявка не найдена")
+
+        if current_user.role != UserRoleEnum.EXECUTOR:
+            raise ValueError("Изменять дату поставки может только Снабжение")
+
+        if request.status != OrderStatusEnum.APPROVED:
+            raise ValueError("Дату поставки можно менять только у согласованной заявки")
+
+        request.real_delivery_date = delivery_date
+        self.db.commit()
+        self.db.refresh(request)
         return request

@@ -77,7 +77,8 @@ class RequestRead(RequestBase):
 class PaymentStatusUpdate(BaseModel):
     payment_status: PaymentStatusEnum
 
-
+class RealDeliveryDateUpdate(BaseModel):
+    real_delivery_date: date
 
 from .request_materials import RequestMaterialCreate, RequestMaterialRead
 

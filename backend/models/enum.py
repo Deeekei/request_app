@@ -43,6 +43,8 @@ class ObjectsEnum(enum.Enum):
 class PaymentStatusEnum(enum.Enum):
     PAID = "Оплачено"
     UNPAID = "Неоплачено"
+    ADVANCE = "Аванс 50%"
+    DELAY = "В отсрочку"
 
 
 class RequestTypeEnum(enum.Enum):

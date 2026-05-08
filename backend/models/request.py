@@ -36,6 +36,7 @@ class RequestDB(Base):
     agreement = Column(String, nullable=False)
     section = Column(String, nullable=True)
     delivery_date = Column(Date, nullable=True)# agreement
+    real_delivery_date = Column(Date, nullable=True)
     object = Column(Enum(ObjectsEnum), nullable=False)
     status = Column(Enum(OrderStatusEnum), nullable=False, default=OrderStatusEnum.DRAFT)
     current_responsible = Column(Enum(UserRoleEnum), nullable=True)

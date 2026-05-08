@@ -374,3 +374,5 @@ async def update_payment_status(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+@router
