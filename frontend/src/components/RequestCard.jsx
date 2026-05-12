@@ -4,6 +4,15 @@ import { formatDateTime, formatStatus, normalizeEnum, statusTone } from '../util
 export function RequestCard({ request }) {
   const isDraft = normalizeEnum(request.status).toLowerCase() === 'черновик';
 
+  // Функция для определения цвета статуса оплаты
+  const getPaymentStatusTone = (status) => {
+    const val = normalizeEnum(status);
+    if (val === 'Оплачено') return 'approved';
+    if (val === 'Неоплачено') return 'rejected';
+    if (val === 'Аванс 50%' || val === 'В отсрочку') return 'warning';
+    return 'neutral';
+  };
+
   return (
     <article className="request-card">
       <div className="request-card__header">
@@ -11,6 +20,12 @@ export function RequestCard({ request }) {
           <h3>{request.title}</h3>
           <div className="meta-line wrap">
             <span className={`pill ${statusTone(request.status)}`}>{formatStatus(request.status)}</span>
+
+            {/* Вывод статуса оплаты цветом */}
+            <span className={`pill ${getPaymentStatusTone(request.payment_status)}`}>
+              Оплата: {normalizeEnum(request.payment_status)}
+            </span>
+
             <span className="muted-pill">
               Ответственный: {normalizeEnum(request.current_responsible)}
             </span>
@@ -25,10 +40,11 @@ export function RequestCard({ request }) {
         <span><strong>Автор:</strong> {request.author_name}</span>
         <span><strong>Объект:</strong> {normalizeEnum(request.object)}</span>
         <span><strong>Тип:</strong> {normalizeEnum(request.request_type)}</span>
-        <span><strong>Оплата:</strong> {normalizeEnum(request.payment_status)}</span>
+        {/* Статус оплаты из этой сетки удален, так как он теперь сверху */}
         <span><strong>Шифр проекта:</strong> {request.agreement}</span>
         <span><strong>Секция:</strong> {request.section || '—'}</span>
         <span><strong>Дата доставки:</strong> {formatDateTime(request.delivery_date)}</span>
+        <span><strong>Фактическая поставка:</strong> {request.real_delivery_date ? formatDateTime(request.real_delivery_date) : '—'}</span>
         <span><strong>Создано:</strong> {formatDateTime(request.created_at)}</span>
       </div>
 

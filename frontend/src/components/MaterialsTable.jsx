@@ -28,11 +28,8 @@ export function MaterialsTable({ materials = [], highlightOverdraft = false }) {
                 key={item.id || `${item.agreement_material_id || 'manual'}-${index}`}
                 className={highlightOverdraft && isOverdraft ? 'overdraft-row' : ''}
               >
-                {/* ===== Материал + комментарий ===== */}
                 <td>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-
-                    {/* Название */}
                     <div>
                       {item.material_name || `Материал ${item.agreement_material_id || ''}`}
 
@@ -46,7 +43,6 @@ export function MaterialsTable({ materials = [], highlightOverdraft = false }) {
                       ) : null}
                     </div>
 
-                    {/* Комментарий */}
                     {item.manual_comment ? (
                       <div
                         style={{
@@ -61,17 +57,9 @@ export function MaterialsTable({ materials = [], highlightOverdraft = false }) {
                     ) : null}
                   </div>
                 </td>
-
-                {/* Количество */}
                 <td>{item.quantity}</td>
-
-                {/* Единица */}
                 <td>{normalizeEnum(item.material_unit || item.unit)}</td>
-
-                {/* Дата */}
                 <td>{formatDateTime(item.created_at)}</td>
-
-                {/* Перерасход */}
                 {highlightOverdraft ? (
                   <td>
                     {isOverdraft ? (

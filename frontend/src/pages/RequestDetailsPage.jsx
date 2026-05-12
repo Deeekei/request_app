@@ -81,6 +81,14 @@ export function RequestDetailsPage() {
   const canManageInvoices = ['исполнитель', 'снабжение', 'executor'].includes(userRole) && isApproved;
   const canUpdatePayment = canManageInvoices;
 
+  const getPaymentStatusTone = (status) => {
+    const val = normalizeEnum(status);
+    if (val === 'Оплачено') return 'approved';
+    if (val === 'Неоплачено') return 'rejected';
+    if (val === 'Аванс 50%' || val === 'В отсрочку') return 'warning';
+    return '';
+  };
+
   async function handleSubmitRequest() {
     try {
       setSuccess('');
@@ -154,6 +162,18 @@ export function RequestDetailsPage() {
     }
   }
 
+  async function handleRealDeliveryDateChange(dateStr) {
+    try {
+      setSuccess('');
+      setError('');
+      await requestApi.setRealDeliveryDate(token, requestId, dateStr);
+      setSuccess('Фактическая дата поставки обновлена.');
+      await loadRequest();
+    } catch (err) {
+      setError(err.message || 'Не удалось изменить фактическую дату поставки.');
+    }
+  }
+
   async function handleReview(approve) {
     try {
       setSuccess('');
@@ -191,6 +211,12 @@ export function RequestDetailsPage() {
             <div className="details-card__head">
               <div className="meta-line wrap">
                 <span className={`pill ${statusTone(request.status)}`}>{formatStatus(request.status)}</span>
+
+                {/* Бейдж статуса оплаты */}
+                <span className={`pill ${getPaymentStatusTone(request.payment_status)}`}>
+                  Оплата: {normalizeEnum(request.payment_status)}
+                </span>
+
                 <span className="muted-pill">Ответственный: {currentResponsible}</span>
               </div>
               <div className="actions-row">
@@ -205,24 +231,45 @@ export function RequestDetailsPage() {
               <div><span>Автор</span><strong>{request.author_name}</strong></div>
               <div><span>Объект</span><strong>{normalizeEnum(request.object)}</strong></div>
               <div><span>Тип заявки</span><strong>{normalizeEnum(request.request_type)}</strong></div>
-              <div><span>Оплата</span><strong>{normalizeEnum(request.payment_status)}</strong></div>
               <div><span>Шифр проекта</span><strong>{request.agreement}</strong></div>
               <div><span>Секция</span><strong>{request.section || '—'}</strong></div>
               <div><span>Дата доставки</span><strong>{request.delivery_date ? formatDate(request.delivery_date) : '—'}</strong></div>
+
+              {/* Вывод фактической даты поставки */}
+              <div><span>Факт. дата поставки</span><strong>{request.real_delivery_date ? formatDate(request.real_delivery_date) : '—'}</strong></div>
+
               <div><span>Создано</span><strong>{formatDateTime(request.created_at)}</strong></div>
               <div><span>Обновлено</span><strong>{formatDateTime(request.updated_at)}</strong></div>
             </div>
 
+            {/* Блок изменения оплаты и фактической даты для снабжения */}
             {canUpdatePayment ? (
-              <div className="field payment-status-field">
-                <label>Изменить оплату</label>
-                <select
-                  value={typeof request.payment_status === 'string' ? request.payment_status : request.payment_status?.value || 'UNPAID'}
-                  onChange={(event) => handlePaymentStatusChange(event.target.value)}
-                >
-                  <option value="Неоплачено">Неоплачено</option>
-                  <option value="Оплачено">Оплачено</option>
-                </select>
+              <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+
+                {/* Поле изменения оплаты с ограничением ширины maxWidth: '320px' */}
+                <div className="field" style={{ flex: '1', minWidth: '200px', maxWidth: '320px' }}>
+                  <label>Изменить оплату</label>
+                  <select
+                    value={typeof request.payment_status === 'string' ? request.payment_status : request.payment_status?.value || 'UNPAID'}
+                    onChange={(event) => handlePaymentStatusChange(event.target.value)}
+                  >
+                    <option value="Неоплачено">Неоплачено</option>
+                    <option value="Оплачено">Оплачено</option>
+                    <option value="Аванс 50%">Аванс 50%</option>
+                    <option value="В отсрочку">В отсрочку</option>
+                  </select>
+                </div>
+
+                {/* Поле изменения даты с таким же ограничением */}
+                <div className="field" style={{ flex: '1', minWidth: '200px', maxWidth: '320px' }}>
+                  <label>Изменить факт. дату поставки</label>
+                  <input
+                    type="date"
+                    value={request.real_delivery_date ? request.real_delivery_date.substring(0, 10) : ''}
+                    onChange={(event) => handleRealDeliveryDateChange(event.target.value)}
+                  />
+                </div>
+
               </div>
             ) : null}
 

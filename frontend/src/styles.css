@@ -359,7 +359,6 @@ th { color: #7f1d1d; font-size: .92rem; }
   .material-row { grid-template-columns: 1fr; }
 }
 
-
 .overdraft-row {
   background: #fff1f2;
 }
@@ -543,7 +542,6 @@ th { color: #7f1d1d; font-size: .92rem; }
 }
 
 .payment-status-field {
-  margin-top: 18px;
   max-width: 340px;
 }
 
@@ -567,4 +565,10 @@ th { color: #7f1d1d; font-size: .92rem; }
 .selected-files-list__item span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.pill.warning {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
 }

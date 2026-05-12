@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Optional
 
 from multipart import file_path
-
+from datetime import date
 from backend.schemas.request_models import RequestCreate, RequestUpdate, RequestRead
 from backend.schemas.request_models import CommentRead, PaymentStatusUpdate
 from backend.routers.auth_router import get_current_user, require_pto, require_director, require_customer
@@ -78,7 +78,8 @@ def to_request_read(req) -> RequestRead:
             "materials": materials,
             "comments": comments,
             "payment_status": req.payment_status,
-            "request_type": req.request_type
+            "request_type": req.request_type,
+            "real_delivery_date": req.real_delivery_date
         }
     )
 def spend_all_materials(materials: List[RequestMaterialRead], request: RequestDB, db: Session):
@@ -375,4 +376,23 @@ async def update_payment_status(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-@router
+@router.patch("/{request_id}/real-delivery-date")
+def set_real_delivery_date(
+    request_id: int,
+    delivery_date: date,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = RequestService(db)
+    try:
+        return service.set_real_delivery_date(
+            request_id=request_id,
+            current_user=current_user,
+            delivery_date=delivery_date,
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        )

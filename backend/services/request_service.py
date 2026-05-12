@@ -16,7 +16,7 @@ class RequestService:
         self.agreement_material_repo = AgreementMaterialRepository(db)
 
     def create_draft(self, data: RequestCreate, current_user: UserDB):
-        if current_user.role not in [UserRoleEnum.USER, UserRoleEnum.ADMIN]:
+        if current_user.role not in [UserRoleEnum.USER, UserRoleEnum.ADMIN, UserRoleEnum.PTO, UserRoleEnum.CUSTOMER]:
             raise PermissionError("Только пользователь может создавать заявки")
         try:
             request = (self.request_repo.create_draft(data=data, user = current_user))
@@ -342,6 +342,9 @@ class RequestService:
 
         if request.status != OrderStatusEnum.APPROVED:
             raise ValueError("Дату поставки можно менять только у согласованной заявки")
+
+        if delivery_date < date.today():
+            raise ValueError("Нельзя установить дату в прошлом")
 
         request.real_delivery_date = delivery_date
         self.db.commit()

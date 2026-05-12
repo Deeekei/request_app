@@ -25,6 +25,9 @@ function HomeRedirect() {
   if (role === 'директор') return <Navigate to="/director-review" replace />;
   if (role === 'заказчик') return <Navigate to="/customer-review" replace />;
 
+  // Автоматический редирект для снабжения на согласованные заявки
+  if (role === 'снабжение') return <Navigate to="/approved-requests" replace />;
+
   return <Navigate to="/requests" replace />;
 }
 
@@ -48,10 +51,11 @@ export default function App() {
         <Route path="/requests/:requestId/edit" element={<RequestFormPage mode="edit" />} />
         <Route path="/profile" element={<ProfilePage />} />
 
+        {/* Добавили роль 'снабжение' в разрешенные роли */}
         <Route
           path="/approved-requests"
           element={
-            <RoleRoute allowedRoles={['исполнитель', 'администратор']}>
+            <RoleRoute allowedRoles={['исполнитель', 'администратор', 'снабжение']}>
               <ApprovedRequestsPage />
             </RoleRoute>
           }

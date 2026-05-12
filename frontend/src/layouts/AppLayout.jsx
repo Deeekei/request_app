@@ -30,7 +30,12 @@ export function AppLayout() {
     пто: [<SidebarLink key="pto" to="/pto-review" onClick={closeMenu}>На проверке у ПТО</SidebarLink>],
     директор: [<SidebarLink key="director" to="/director-review" onClick={closeMenu}>На проверке у Директора АСБ</SidebarLink>],
     заказчик: [<SidebarLink key="customer" to="/customer-review" onClick={closeMenu}>На проверке у Заказчика</SidebarLink>],
-    исполнитель: [<SidebarLink key="approved" to="/approved-requests" onClick={closeMenu}>Согласованные заявки</SidebarLink>],
+    исполнитель: [
+      <SidebarLink key="approved" to="/approved-requests" onClick={closeMenu}>Согласованные заявки</SidebarLink>
+    ],
+    снабжение: [
+      <SidebarLink key="approved" to="/approved-requests" onClick={closeMenu}>Согласованные заявки</SidebarLink>
+    ],
     администратор: [
       <SidebarLink key="pto" to="/pto-review" onClick={closeMenu}>На проверке у ПТО</SidebarLink>,
       <SidebarLink key="director" to="/director-review" onClick={closeMenu}>На проверке у Директора АСБ</SidebarLink>,
@@ -96,7 +101,12 @@ export function AppLayout() {
 
         <nav className="sidebar-nav">
           <SidebarLink to="/requests" onClick={closeMenu}>{normalizedRole === 'пользователь' ? 'Мои заявки' : 'Все заявки'}</SidebarLink>
-          <SidebarLink to="/requests/new" onClick={closeMenu}>Создать заявку</SidebarLink>
+
+          {/* Скрываем кнопку "Создать заявку", если роль "снабжение" */}
+          {normalizedRole !== 'снабжение' && (
+            <SidebarLink to="/requests/new" onClick={closeMenu}>Создать заявку</SidebarLink>
+          )}
+
           <SidebarLink to="/profile" onClick={closeMenu}>Профиль</SidebarLink>
           {roleLinks[normalizedRole]?.map((link) => link) || null}
         </nav>

@@ -32,9 +32,9 @@ class CommentRead(CommentBase):
 
 
 class RequestBase(BaseModel):
-    title: str = Field(..., min_length=3, max_length=100)
+    title: str = Field(..., min_length=1, max_length=100)
     description: str | None = None
-    agreement: str = Field(..., min_length=3)
+    agreement: str = Field(..., min_length=1)
     section: str = Field(...,max_length=10)
     delivery_date: date
     object: ObjectsEnum
@@ -72,6 +72,7 @@ class RequestRead(RequestBase):
     updated_at: Optional[datetime] = None
     payment_status: PaymentStatusEnum
     request_type: RequestTypeEnum
+    real_delivery_date: Optional[date] = None
     model_config = ConfigDict(from_attributes=True)
 
 class PaymentStatusUpdate(BaseModel):

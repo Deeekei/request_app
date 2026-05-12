@@ -116,6 +116,14 @@ export const requestApi = {
     });
   },
 
+
+  setRealDeliveryDate(token, requestId, deliveryDate) {
+    return apiRequest(`/requests/${requestId}/real-delivery-date?delivery_date=${deliveryDate}`, {
+      method: 'PATCH',
+      headers: buildAuthHeaders(token, { json: false }),
+    });
+  },
+
   downloadExcel(token, requestId) {
     return fetch(`${API_BASE_URL}/requests/${requestId}/excel`, {
       method: 'GET',

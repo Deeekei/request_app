@@ -81,7 +81,12 @@ export function DashboardPage() {
       <PageHeader
         title={isRegularUser ? 'Мои заявки' : 'Все заявки'}
         subtitle={isRegularUser ? 'Просмотр ваших заявок по статусам.' : 'Просмотр и поиск заявок по статусу и ID заявки.'}
-        actions={<Link className="button primary" to="/requests/new">Создать заявку</Link>}
+        actions={
+          /* Кнопка "Создать заявку" будет скрыта для роли Снабжение */
+          normalizedRole !== 'снабжение' ? (
+            <Link className="button primary" to="/requests/new">Создать заявку</Link>
+          ) : null
+        }
       />
 
       <div className="details-card compact filters-bar">

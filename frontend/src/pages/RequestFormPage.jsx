@@ -1,3 +1,4 @@
+// Добавлены новые статусы оплаты: ADVANCE_50 и DEFERRED_PAYMENT
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { attachmentApi } from '../api/attachmentApi';
