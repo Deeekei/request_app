@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
-
+from sqlalchemy.orm import Session
+from backend.models.user import UserDB
+from backend.schemas.auth_models import ChangePasswordRequest
 from dotenv import load_dotenv
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -41,3 +43,24 @@ def decode_token(token:str) -> dict:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Неверный или просроченный токен")
 
 
+def change_password(db: Session, current_user: UserDB, password_data: ChangePasswordRequest):
+    # 1. Проверяем старый пароль
+    if not verify_password(password_data.old_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный текущий пароль"
+        )
+
+    # 2. Проверяем, что новый пароль отличается от старого (опционально)
+    if password_data.old_password == password_data.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Новый пароль должен отличаться от старого"
+        )
+
+    # 3. Хэшируем новый пароль и сохраняем
+    current_user.hashed_password = get_password_hash(password_data.new_password)
+    db.commit()
+    db.refresh(current_user)
+
+    return {"message": "Пароль успешно изменен"}

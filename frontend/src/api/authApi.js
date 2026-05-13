@@ -21,4 +21,14 @@ export const authApi = {
       headers: buildAuthHeaders(token, { json: false }),
     });
   },
+  changePassword(token, oldPassword, newPassword) {
+    return apiRequest('/auth/change-password', {
+      method: 'POST',
+      headers: buildAuthHeaders(token),
+      body: JSON.stringify({
+        old_password: oldPassword,
+        new_password: newPassword,
+      }),
+    });
+  },
 };

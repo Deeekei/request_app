@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timezone
+from backend.schemas.auth_models import ChangePasswordRequest
 from sqlalchemy.orm import Session
 from backend.repositories.user_repository import UserRepository
 from backend.schemas.auth_models import UserCreate, UserRole, Token, UserResponse
@@ -8,7 +9,7 @@ from backend.models import UserDB, UserRoleEnum
 from backend.database import get_db
 from backend.users.auth import (
     verify_password, get_password_hash,
-    create_access_token, decode_token
+    create_access_token, decode_token, change_password
 )
 
 router = APIRouter(prefix="/auth", tags=["Аутентификация"])
@@ -107,6 +108,13 @@ async def get_me(
     """Получить информацию о текущем пользователе"""
     return UserResponse.model_validate(current_user)
 
+@router.post("/change-password")
+def api_change_password(
+    password_data: ChangePasswordRequest,
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return change_password(db=db, current_user=current_user, password_data=password_data)
 
 # === Role Checkers ===
 async def require_customer(
