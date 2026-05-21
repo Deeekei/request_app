@@ -1,11 +1,12 @@
 from sqlalchemy.orm import Session
 from backend.services.push_service import send_push_to_users
-from backend.models.enum import OrderStatusEnum, UserRoleEnum, PaymentStatusEnum
+from backend.models.enum import OrderStatusEnum, UserRoleEnum, PaymentStatusEnum, RequestTypeEnum
 from backend.models.user import UserDB
 from backend.repositories.request_repository import RequestRepository
 from backend.repositories.agreement_material import AgreementMaterialRepository
 from backend.schemas.request_models import RequestUpdate, RequestCreate
 from datetime import date
+
 
 
 
@@ -109,12 +110,22 @@ class RequestService:
             raise ValueError(f"Нельзя отправить заявку в статусе {request.status.value}")
 
         try:
-            for item in request.materials:
-                if not item.is_manual:
-                    self.agreement_material_repo.reserve(item.agreement_material_id, item.quantity)
+            if request.request_type == RequestTypeEnum.HOZYAISTVENNYE:
+                self.request_repo.set_status(
+                    request=request, new_status=OrderStatusEnum.APPROVED, responsible_role=UserRoleEnum.EXECUTOR
+                )
 
-            self.request_repo.set_status(request=request, new_status= OrderStatusEnum.PTO_CHECK,
-                                         responsible_role=UserRoleEnum.PTO)
+                for item in request.materials:
+                    if not item.is_manual:
+                        self.agreement_material_repo.spend(item.agreement_material_id, item.quantity)
+                body = "Заявка на хозяйственные материалы, и не требует согласования"
+            else:
+                for item in request.materials:
+                    if not item.is_manual:
+                        self.agreement_material_repo.reserve(item.agreement_material_id, item.quantity)
+
+                self.request_repo.set_status(request=request, new_status= OrderStatusEnum.PTO_CHECK,
+                                             responsible_role=UserRoleEnum.PTO)
             self.db.commit()
             self.db.refresh(request)
             self._notify_next_approvers(request)
