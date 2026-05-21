@@ -21,6 +21,8 @@ from backend.repositories.agreement_material import AgreementMaterialRepository
 from backend.schemas.material import ObjectEnum
 from backend.routers.auth_router import require_executor
 
+
+
 router = APIRouter(prefix="/requests", tags=["Заявки"])
 
 
@@ -115,6 +117,7 @@ async def create_request(request_data: RequestCreate, current_user: UserDB = Dep
 async def get_requests(
     status: Optional[OrderStatusEnum] = None,
     user_id: Optional[int] = None,
+    object: Optional[ObjectEnum] = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -123,6 +126,7 @@ async def get_requests(
     requests = repo.list_requests(
         status=status,
         author_id=user_id,
+        object_name=object,
         skip=skip,
         limit=limit,
     )

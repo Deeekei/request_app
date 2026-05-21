@@ -129,6 +129,7 @@ class RequestRepository:
         status: Optional[OrderStatusEnum] = None,
         author_id: Optional[int] = None,
         user: Optional[UserDB] = None,
+        object_name: Optional[ObjectsEnum] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[RequestDB]:
@@ -139,6 +140,10 @@ class RequestRepository:
 
         if status is not None:
             query = query.filter(RequestDB.status == status)
+
+        if object_name is not None:
+            search_value = object_name.name if hasattr(object_name, 'name') else object_name
+            query = query.filter(RequestDB.object == search_value)
 
         if user is not None and user.role == UserRoleEnum.CUSTOMER:
             query = query.filter(RequestDB.object == user.object)

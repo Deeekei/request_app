@@ -17,13 +17,39 @@ const statuses = [
   'отклонено',
 ];
 
+// Добавляем список объектов для фильтра
+const objectOptions = [
+  { value: '', label: 'Все объекты' },
+  { value: 'ЖК "Аурика"', label: 'ЖК "Аурика"' },
+  { value: 'ЖК "Аурум"', label: 'ЖК "Аурум"' },
+  { value: 'ЖК "Максимус"', label: 'ЖК "Максимус"' },
+  { value: 'Административно-деловой центр', label: 'Административно-деловой центр' },
+  { value: 'Жилой дом в г. Лермонтов', label: 'Жилой дом в г. Лермонтов' },
+  { value: 'Комплекс производственных зданий в д. Карпово', label: 'Комплекс производственных зданий в д. Карпово' },
+  { value: 'Фитнесс-центр с бассейном в ЖК Старый Центр', label: 'Фитнесс-центр с бассейном в ЖК Старый Центр' },
+  { value: 'Туристический центр по ул. Менделеева', label: 'Туристический центр по ул. Менделеева' },
+  { value: 'Вертолетный центр (Хелипорт)', label: 'Вертолетный центр (Хелипорт)' },
+  { value: 'МБУ ДО СШОР №33', label: 'МБУ ДО СШОР №33' },
+  { value: 'Объект культурного наследия по ул. М. Карима, 3', label: 'Объект культурного наследия по ул. М. Карима, 3' },
+  { value: 'Приют человека', label: 'Приют человека' },
+  { value: 'ЖК "Свобода"', label: 'ЖК "Свобода"' },
+  { value: 'ЖК "Старый центр"', label: 'ЖК "Старый центр"' },
+  { value: 'Комплекс МКД с.Михайловка', label: 'Комплекс МКД с.Михайловка' },
+  { value: 'ППТ квартала по ул. Менделеева ', label: 'ППТ квартала по ул. Менделеева' },
+  { value: 'Комплекс МКД в с. Молочное', label: 'Комплекс МКД в с. Молочное' },
+  { value: 'Апартаменты в г. Евпатория', label: 'Апартаменты в г. Евпатория' },
+  { value: 'КРТ Д.Атаевка', label: 'КРТ Д.Атаевка' },
+  { value: 'КРТ п. Базилевка,', label: 'КРТ п. Базилевка' },
+];
+
 export function DashboardPage() {
   const { token, user } = useAuth();
   const normalizedRole = normalizeRole(user?.role);
   const isRegularUser = normalizedRole === 'пользователь';
 
   const [requests, setRequests] = useState([]);
-  const [filters, setFilters] = useState({ status: '', request_id: '' });
+  // Добавляем object в состояние фильтров
+  const [filters, setFilters] = useState({ status: '', request_id: '', object: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -37,6 +63,7 @@ export function DashboardPage() {
         if (isRegularUser) {
           const data = await requestApi.list(token, {
             status: filters.status || undefined,
+            object: filters.object || undefined, // Передаем объект в API
             user_id: user?.id,
           });
           if (!cancelled) setRequests(data);
@@ -46,12 +73,14 @@ export function DashboardPage() {
         if (filters.request_id) {
           const request = await requestApi.getById(token, filters.request_id);
           const matchesStatus = !filters.status || normalizeEnum(request.status).toLowerCase() === filters.status.toLowerCase();
-          if (!cancelled) setRequests(matchesStatus ? [request] : []);
+          const matchesObject = !filters.object || normalizeEnum(request.object) === filters.object;
+          if (!cancelled) setRequests(matchesStatus && matchesObject ? [request] : []);
           return;
         }
 
         const data = await requestApi.list(token, {
           status: filters.status || undefined,
+          object: filters.object || undefined, // Передаем объект в API
         });
         if (!cancelled) setRequests(data);
       } catch (err) {
@@ -69,7 +98,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [filters.request_id, filters.status, isRegularUser, token, user?.id]);
+  }, [filters.request_id, filters.status, filters.object, isRegularUser, token, user?.id]);
 
   const draftCount = useMemo(
     () => requests.filter((item) => String(item.status?.value || item.status).includes('черновик')).length,
@@ -80,9 +109,8 @@ export function DashboardPage() {
     <section className="page-section">
       <PageHeader
         title={isRegularUser ? 'Мои заявки' : 'Все заявки'}
-        subtitle={isRegularUser ? 'Просмотр ваших заявок по статусам.' : 'Просмотр и поиск заявок по статусу и ID заявки.'}
+        subtitle={isRegularUser ? 'Просмотр ваших заявок по статусам и объектам.' : 'Просмотр и поиск заявок по статусу, объекту и ID.'}
         actions={
-          /* Кнопка "Создать заявку" будет скрыта для роли Снабжение */
           normalizedRole !== 'снабжение' ? (
             <Link className="button primary" to="/requests/new">Создать заявку</Link>
           ) : null
@@ -90,6 +118,7 @@ export function DashboardPage() {
       />
 
       <div className="details-card compact filters-bar">
+        {/* Фильтр по статусу */}
         <div className="field">
           <label>Статус</label>
           <select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}>
@@ -99,6 +128,17 @@ export function DashboardPage() {
           </select>
         </div>
 
+        {/* НОВЫЙ Фильтр по объекту */}
+        <div className="field">
+          <label>Объект</label>
+          <select value={filters.object} onChange={(e) => setFilters((prev) => ({ ...prev, object: e.target.value }))}>
+            {objectOptions.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Поиск по ID (только для руководителей/снабжения) */}
         {!isRegularUser && (
           <div className="field">
             <label>ID заявки</label>
@@ -111,16 +151,8 @@ export function DashboardPage() {
         )}
 
         <div className="summary-box">
-          <span>Всего заявок</span>
+          <span>Всего</span>
           <strong>{requests.length}</strong>
-        </div>
-        <div className="summary-box">
-          <span>Черновики</span>
-          <strong>{draftCount}</strong>
-        </div>
-        <div className="summary-box">
-          <span>Вход выполнен как</span>
-          <strong>{user?.role || '—'}</strong>
         </div>
       </div>
 
