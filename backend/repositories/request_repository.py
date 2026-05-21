@@ -146,7 +146,8 @@ class RequestRepository:
             query = query.filter(RequestDB.object == search_value)
 
         if user is not None and user.role == UserRoleEnum.CUSTOMER:
-            query = query.filter(RequestDB.object == user.object)
+            customer_objects = [obj.name for obj in user.objects]
+            query = query.filter(RequestDB.object.in_(customer_objects))
 
         if author_id is not None:
             query = query.filter(RequestDB.author_id == author_id)
