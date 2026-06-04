@@ -81,6 +81,13 @@ export function RequestDetailsPage() {
   const canManageInvoices = ['исполнитель', 'снабжение', 'executor'].includes(userRole) && isApproved;
   const canUpdatePayment = canManageInvoices;
 
+  // Расширяем права: разрешаем нажимать "Исполнено" Исполнителю, Снабжению и Администратору
+  const roleForButton = user?.role ? String(user.role).toLowerCase() : '';
+  const isAllowedToComplete = ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(userRole) || ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(roleForButton);
+
+  // Кнопка показывается, если есть права и статус не равен "исполнено"
+  const canMarkCompleted = isAllowedToComplete && statusValue !== 'исполнено';
+
   const getPaymentStatusTone = (status) => {
     const val = normalizeEnum(status);
     if (val === 'Оплачено') return 'approved';
@@ -106,6 +113,21 @@ export function RequestDetailsPage() {
       navigate('/requests');
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  // НОВАЯ ФУНКЦИЯ ДЛЯ ПЕРЕВОДА В СТАТУС "ИСПОЛНЕНО"
+  async function handleMarkCompleted() {
+    if (!window.confirm('Вы уверены, что хотите перевести заявку в статус "Исполнено"?')) return;
+    try {
+      setSuccess('');
+      setError('');
+      // Вызываем метод API для обновления статуса
+      await requestApi.updateStatus(token, requestId, 'исполнено');
+      setSuccess('Заявка успешно переведена в статус "Исполнено".');
+      await loadRequest();
+    } catch (err) {
+      setError(err.message || 'Не удалось изменить статус заявки.');
     }
   }
 
@@ -212,7 +234,6 @@ export function RequestDetailsPage() {
               <div className="meta-line wrap">
                 <span className={`pill ${statusTone(request.status)}`}>{formatStatus(request.status)}</span>
 
-                {/* Бейдж статуса оплаты */}
                 <span className={`pill ${getPaymentStatusTone(request.payment_status)}`}>
                   Оплата: {normalizeEnum(request.payment_status)}
                 </span>
@@ -234,41 +255,53 @@ export function RequestDetailsPage() {
               <div><span>Шифр проекта</span><strong>{request.agreement}</strong></div>
               <div><span>Секция</span><strong>{request.section || '—'}</strong></div>
               <div><span>Дата доставки</span><strong>{request.delivery_date ? formatDate(request.delivery_date) : '—'}</strong></div>
-
-              {/* Вывод фактической даты поставки */}
               <div><span>Факт. дата поставки</span><strong>{request.real_delivery_date ? formatDate(request.real_delivery_date) : '—'}</strong></div>
-
               <div><span>Создано</span><strong>{formatDateTime(request.created_at)}</strong></div>
               <div><span>Обновлено</span><strong>{formatDateTime(request.updated_at)}</strong></div>
             </div>
 
-            {/* Блок изменения оплаты и фактической даты для снабжения */}
-            {canUpdatePayment ? (
-              <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+            {/* Блок изменения оплаты, даты и кнопка ИСПОЛНЕНО */}
+            {(canUpdatePayment || canMarkCompleted) ? (
+              <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginTop: '1rem', alignItems: 'flex-end' }}>
 
-                {/* Поле изменения оплаты с ограничением ширины maxWidth: '320px' */}
-                <div className="field" style={{ flex: '1', minWidth: '200px', maxWidth: '320px' }}>
-                  <label>Изменить оплату</label>
-                  <select
-                    value={typeof request.payment_status === 'string' ? request.payment_status : request.payment_status?.value || 'UNPAID'}
-                    onChange={(event) => handlePaymentStatusChange(event.target.value)}
-                  >
-                    <option value="Неоплачено">Неоплачено</option>
-                    <option value="Оплачено">Оплачено</option>
-                    <option value="Аванс 50%">Аванс 50%</option>
-                    <option value="В отсрочку">В отсрочку</option>
-                  </select>
-                </div>
+                {canUpdatePayment ? (
+                  <>
+                    <div className="field" style={{ flex: '1', minWidth: '200px', maxWidth: '320px' }}>
+                      <label>Изменить оплату</label>
+                      <select
+                        value={typeof request.payment_status === 'string' ? request.payment_status : request.payment_status?.value || 'UNPAID'}
+                        onChange={(event) => handlePaymentStatusChange(event.target.value)}
+                      >
+                        <option value="Неоплачено">Неоплачено</option>
+                        <option value="Оплачено">Оплачено</option>
+                        <option value="Аванс 50%">Аванс 50%</option>
+                        <option value="В отсрочку">В отсрочку</option>
+                      </select>
+                    </div>
+                    <div className="field" style={{ flex: '1', minWidth: '200px', maxWidth: '320px' }}>
+                      <label>Изменить факт. дату поставки</label>
+                      <input
+                        type="date"
+                        value={request.real_delivery_date ? request.real_delivery_date.substring(0, 10) : ''}
+                        onChange={(event) => handleRealDeliveryDateChange(event.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : null}
 
-                {/* Поле изменения даты с таким же ограничением */}
-                <div className="field" style={{ flex: '1', minWidth: '200px', maxWidth: '320px' }}>
-                  <label>Изменить факт. дату поставки</label>
-                  <input
-                    type="date"
-                    value={request.real_delivery_date ? request.real_delivery_date.substring(0, 10) : ''}
-                    onChange={(event) => handleRealDeliveryDateChange(event.target.value)}
-                  />
-                </div>
+                {/* КНОПКА "ИСПОЛНЕНО" */}
+                {canMarkCompleted ? (
+                  <div style={{ marginBottom: '4px' }}>
+                    <button
+                      className="button primary"
+                      style={{ backgroundColor: '#10b981', borderColor: '#10b981', height: '42px', padding: '0 24px' }}
+                      type="button"
+                      onClick={handleMarkCompleted}
+                    >
+                      Отметить как исполнено
+                    </button>
+                  </div>
+                ) : null}
 
               </div>
             ) : null}

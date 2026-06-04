@@ -8,6 +8,7 @@ class OrderStatusEnum(enum.Enum):
     EXECUTOR_CHECK="Передано в снабжение"
     APPROVED = "согласовано"
     REJECTED = "отклонено"
+    COMPLETED = "исполнено"
 
 class UserRoleEnum(enum.Enum):
     USER = "Пользователь"

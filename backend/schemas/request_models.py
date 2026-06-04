@@ -81,6 +81,10 @@ class PaymentStatusUpdate(BaseModel):
 class RealDeliveryDateUpdate(BaseModel):
     real_delivery_date: date
 
+
+class RequestStatusUpdate(BaseModel):
+    status: OrderStatusEnum
+
 from .request_materials import RequestMaterialCreate, RequestMaterialRead
 
 RequestCreate.model_rebuild()

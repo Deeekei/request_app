@@ -4,7 +4,7 @@ from typing import List, Optional
 from multipart import file_path
 from datetime import date
 from backend.schemas.request_models import RequestCreate, RequestUpdate, RequestRead
-from backend.schemas.request_models import CommentRead, PaymentStatusUpdate
+from backend.schemas.request_models import CommentRead, PaymentStatusUpdate, RequestStatusUpdate
 from backend.routers.auth_router import get_current_user, require_pto, require_director, require_customer
 from backend.schemas.request_models import CommentCreate
 from backend.models.request import RequestDB
@@ -400,3 +400,27 @@ def set_real_delivery_date(
             status_code=400,
             detail=str(e),
         )
+
+
+@router.patch("/{request_id}/status", response_model=RequestRead)
+def update_request_status(
+        request_id: int,
+        payload: RequestStatusUpdate,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
+    """
+    Эндпоинт для точечного изменения статуса заявки
+    (например, кнопка 'Исполнено' для исполнителя)
+    """
+    # Инициализируем ваш сервис/репозиторий (у вас это может выглядеть немного иначе)
+    repo = RequestRepository(db)
+
+    # Вызываем функцию, написанную на Шаге 2
+    updated_request = repo.update_status(
+        request_id=request_id,
+        new_status=payload.status,
+        current_user=current_user
+    )
+
+    return updated_request

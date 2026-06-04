@@ -358,3 +358,23 @@ class RequestRepository:
         self.db.commit()
         for obj in objects:
             self.db.refresh(obj)
+
+    def update_status(self, request_id: int, new_status: OrderStatusEnum, current_user):
+        # 1. Находим заявку
+        request = self.db.query(RequestDB).filter(RequestDB.id == request_id).first()
+        if not request:
+            raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+        if current_user.role == UserRoleEnum.EXECUTOR:
+            # Ему разрешено ставить только статус COMPLETED
+            if new_status == OrderStatusEnum.COMPLETED:
+                request.status = new_status
+            else:
+                raise HTTPException(status_code=403, detail="Исполнитель может устанавливать только статус 'Исполнено'")
+        else:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для изменения статуса")
+
+            # 3. Сохраняем изменения в базу данных
+        self.db.commit()
+        self.db.refresh(request)
+        return request

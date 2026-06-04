@@ -30,7 +30,7 @@ const objectOptions = [
   { value: 'КРТ п. Базилевка', label: 'КРТ п. Базилевка' },
 ];
 
-export function ApprovedRequestsPage() {
+export function CompletedRequestsPage() {
   const { token } = useAuth();
   const [requests, setRequests] = useState([]);
   const [selectedObject, setSelectedObject] = useState(''); // Состояние для фильтра по объекту
@@ -40,24 +40,32 @@ export function ApprovedRequestsPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadRequests() {
+    async function loadCompletedRequests() {
       try {
         setIsLoading(true);
         setError('');
         // Отправляем запрос с фильтром по статусу и объекту
         const data = await requestApi.list(token, {
-          status: 'согласовано',
+          status: 'исполнено',
           object: selectedObject || undefined // Если объект не выбран, передаем undefined
         });
-        if (!cancelled) setRequests(data);
+
+        if (!cancelled) {
+          setRequests(data);
+        }
       } catch (err) {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) {
+          setError(err.message);
+        }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     }
 
-    loadRequests();
+    loadCompletedRequests();
+
     return () => {
       cancelled = true;
     };
@@ -66,8 +74,8 @@ export function ApprovedRequestsPage() {
   return (
     <section className="page-section">
       <PageHeader
-        title="Согласованные заявки"
-        subtitle="Заявки, которые прошли все этапы проверки и готовы к исполнению."
+        title="Исполненные заявки"
+        subtitle="Список заявок, которые были успешно завершены и переведены в статус «Исполнено»."
       />
 
       {/* Панель фильтров */}
@@ -90,11 +98,19 @@ export function ApprovedRequestsPage() {
       </div>
 
       {error ? <Alert type="error">{error}</Alert> : null}
-      {isLoading ? <div className="empty-box">Загрузка заявок...</div> : null}
-      {!isLoading && !requests.length ? <div className="empty-box">Нет согласованных заявок по заданным критериям.</div> : null}
+
+      {isLoading ? (
+        <div className="empty-box">Загрузка заявок...</div>
+      ) : null}
+
+      {!isLoading && requests.length === 0 ? (
+        <div className="empty-box">Нет исполненных заявок по заданным критериям.</div>
+      ) : null}
 
       <div className="stack-list">
-        {requests.map((request) => <RequestCard key={request.id} request={request} />)}
+        {requests.map((request) => (
+          <RequestCard key={request.id} request={request} />
+        ))}
       </div>
     </section>
   );

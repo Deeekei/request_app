@@ -325,11 +325,18 @@ class RequestService:
 
         request.payment_status = payment_status
 
-        body = (
-            "Статус оплаты изменён на: Оплачено"
-            if payment_status == PaymentStatusEnum.PAID
-            else "Статус оплаты изменён на: Неоплачено"
-        )
+        if payment_status == PaymentStatusEnum.PAID:
+            status_text = "Оплачено"
+        elif payment_status == PaymentStatusEnum.UNPAID:
+            status_text = "Неоплачено"
+        elif payment_status == PaymentStatusEnum.ADVANCE:
+            status_text = "Аванс 50%"
+        elif payment_status == PaymentStatusEnum.DELAY:
+            status_text = "В отсрочку"
+        else:
+            status_text = "Неизвестный статус"
+
+        body = f"Статус оплаты изменён на: {status_text}"
 
         self.request_repo.add_comment(
             request=request,

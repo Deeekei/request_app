@@ -10,6 +10,7 @@ import { RequestFormPage } from './pages/RequestFormPage';
 import { RequestDetailsPage } from './pages/RequestDetailsPage';
 import { PendingPage } from './pages/PendingPage';
 import { ApprovedRequestsPage } from './pages/ApprovedRequestsPage';
+import { CompletedRequestsPage } from './pages/CompletedRequestsPage'; // <-- ДОБАВЛЕН ИМПОРТ НОВОЙ СТРАНИЦЫ
 import { normalizeRole } from './utils/formatters';
 
 function HomeRedirect() {
@@ -51,12 +52,21 @@ export default function App() {
         <Route path="/requests/:requestId/edit" element={<RequestFormPage mode="edit" />} />
         <Route path="/profile" element={<ProfilePage />} />
 
-        {/* Добавили роль 'снабжение' в разрешенные роли */}
         <Route
           path="/approved-requests"
           element={
             <RoleRoute allowedRoles={['исполнитель', 'администратор', 'снабжение']}>
               <ApprovedRequestsPage />
+            </RoleRoute>
+          }
+        />
+
+        {/* <-- ИСПОЛЬЗУЕМ НАШ НОВЫЙ ФАЙЛ ЗДЕСЬ --> */}
+        <Route
+          path="/completed-requests"
+          element={
+            <RoleRoute allowedRoles={['исполнитель', 'администратор', 'снабжение']}>
+              <CompletedRequestsPage />
             </RoleRoute>
           }
         />

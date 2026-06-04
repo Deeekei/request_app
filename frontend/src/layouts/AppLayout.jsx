@@ -23,35 +23,29 @@ export function AppLayout() {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const normalizedRole = normalizeRole(user?.role);
   const closeMenu = () => setIsMenuOpen(false);
 
-  const roleLinks = {
-    пто: [<SidebarLink key="pto" to="/pto-review" onClick={closeMenu}>На проверке у ПТО</SidebarLink>],
-    директор: [<SidebarLink key="director" to="/director-review" onClick={closeMenu}>На проверке у Директора АСБ</SidebarLink>],
-    заказчик: [<SidebarLink key="customer" to="/customer-review" onClick={closeMenu}>На проверке у Заказчика</SidebarLink>],
-    исполнитель: [
-      <SidebarLink key="approved" to="/approved-requests" onClick={closeMenu}>Согласованные заявки</SidebarLink>
-    ],
-    снабжение: [
-      <SidebarLink key="approved" to="/approved-requests" onClick={closeMenu}>Согласованные заявки</SidebarLink>
-    ],
-    администратор: [
-      <SidebarLink key="pto" to="/pto-review" onClick={closeMenu}>На проверке у ПТО</SidebarLink>,
-      <SidebarLink key="director" to="/director-review" onClick={closeMenu}>На проверке у Директора АСБ</SidebarLink>,
-      <SidebarLink key="customer" to="/customer-review" onClick={closeMenu}>На проверке у Руководителя проекта</SidebarLink>,
-      <SidebarLink key="approved" to="/approved-requests" onClick={closeMenu}>Согласованные заявки</SidebarLink>,
-    ],
-  };
+  // === БЕЗОПАСНАЯ И ТОЧНАЯ ПРОВЕРКА РОЛЕЙ ===
+  const normalizedRole = normalizeRole(user?.role)?.toLowerCase() || '';
+  const rawRole = user?.role ? String(user.role).toUpperCase() : '';
+
+  const isUser = ['пользователь', 'user'].includes(normalizedRole) || rawRole === 'USER';
+  const isProcurement = ['снабжение', 'procurement'].includes(normalizedRole) || rawRole === 'PROCUREMENT';
+  const isExecutor = ['исполнитель', 'executor'].includes(normalizedRole) || rawRole === 'EXECUTOR';
+  const isAdmin = ['администратор', 'admin'].includes(normalizedRole) || rawRole === 'ADMIN';
+  const isPto = ['пто', 'pto'].includes(normalizedRole) || rawRole === 'PTO';
+  const isDirector = ['директор', 'director'].includes(normalizedRole) || rawRole === 'DIRECTOR';
+  const isCustomer = ['заказчик', 'customer'].includes(normalizedRole) || rawRole === 'CUSTOMER';
 
   const pageTitles = {
-    '/requests': normalizedRole === 'пользователь' ? 'Мои заявки' : 'Все заявки',
+    '/requests': isUser ? 'Мои заявки' : 'Все заявки',
     '/requests/new': 'Создать заявку',
     '/profile': 'Профиль',
     '/pto-review': 'На проверке у ПТО',
     '/director-review': 'На проверке у Директора АСБ',
     '/customer-review': 'На проверке у Заказчика',
     '/approved-requests': 'Согласованные заявки',
+    '/completed-requests': 'Исполненные заявки',
   };
 
   const currentTitle = pageTitles[location.pathname] || 'Система заявок';
@@ -100,15 +94,37 @@ export function AppLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          <SidebarLink to="/requests" onClick={closeMenu}>{normalizedRole === 'пользователь' ? 'Мои заявки' : 'Все заявки'}</SidebarLink>
+          <SidebarLink to="/requests" onClick={closeMenu}>
+            {isUser ? 'Мои заявки' : 'Все заявки'}
+          </SidebarLink>
 
-          {/* Скрываем кнопку "Создать заявку", если роль "снабжение" */}
-          {normalizedRole !== 'снабжение' && (
+          {/* Скрываем кнопку "Создать заявку" для снабжения */}
+          {!isProcurement && (
             <SidebarLink to="/requests/new" onClick={closeMenu}>Создать заявку</SidebarLink>
           )}
 
           <SidebarLink to="/profile" onClick={closeMenu}>Профиль</SidebarLink>
-          {roleLinks[normalizedRole]?.map((link) => link) || null}
+
+          {/* === ВЫВОД ВКЛАДОК НА ОСНОВЕ РОЛЕЙ === */}
+          {(isPto || isAdmin) && (
+            <SidebarLink to="/pto-review" onClick={closeMenu}>На проверке у ПТО</SidebarLink>
+          )}
+
+          {(isDirector || isAdmin) && (
+            <SidebarLink to="/director-review" onClick={closeMenu}>На проверке у Директора АСБ</SidebarLink>
+          )}
+
+          {(isCustomer || isAdmin) && (
+            <SidebarLink to="/customer-review" onClick={closeMenu}>На проверке у Заказчика</SidebarLink>
+          )}
+
+          {/* Эти вкладки увидят Исполнитель, Снабжение и Администратор */}
+          {(isExecutor || isProcurement || isAdmin) && (
+            <>
+              <SidebarLink to="/approved-requests" onClick={closeMenu}>Согласованные заявки</SidebarLink>
+              <SidebarLink to="/completed-requests" onClick={closeMenu}>Исполненные заявки</SidebarLink>
+            </>
+          )}
         </nav>
 
         <button

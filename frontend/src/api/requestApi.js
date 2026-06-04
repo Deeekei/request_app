@@ -130,4 +130,21 @@ export const requestApi = {
       headers: buildAuthHeaders(token, { json: false }),
     });
   },
+  async updateStatus(token, id, status) {
+    const response = await fetch(`/api/requests/${id}/status`, { // Убедитесь, что путь (/api/v1/...) совпадает с вашим бэкендом
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` // Или используйте вашу функцию buildAuthHeaders(token) если она есть
+      },
+      body: JSON.stringify({ status })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || 'Не удалось обновить статус заявки');
+    }
+
+    return response.json();
+  },
 };
