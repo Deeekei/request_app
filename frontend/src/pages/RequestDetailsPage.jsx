@@ -55,6 +55,8 @@ export function RequestDetailsPage() {
   const isDraft = statusValue === 'черновик';
   const isRejected = statusValue === 'отклонено' || statusValue === 'отклонена';
   const isApproved = statusValue === 'согласовано';
+  const isCompleted = statusValue === 'исполнено'; // Добавили проверку на исполнено
+
   const canEdit = (isDraft || isRejected) && user?.id === request?.author_id;
   const canSubmit = canEdit;
   const canDelete = isDraft && user?.id === request?.author_id;
@@ -63,7 +65,8 @@ export function RequestDetailsPage() {
     request?.current_responsible?.value || request?.current_responsible
   );
 
-  const currentResponsible = rawResponsible === 'снабжение' && isApproved
+  // Снабжение остается ответственным и в согласованных, и в исполненных
+  const currentResponsible = rawResponsible === 'снабжение' && (isApproved || isCompleted)
     ? 'Снабжение'
     : (rawResponsible || '—');
 
@@ -76,16 +79,15 @@ export function RequestDetailsPage() {
   const hasOverdraftMaterials = Array.isArray(request?.materials)
     && request.materials.some((item) => Boolean(item.overdraft ?? item.will_overdraft));
 
-  const canDownloadExcel = ['исполнитель', 'снабжение', 'администратор'].includes(userRole) && isApproved;
+  // Расширяем видимость блоков для согласованных И исполненных заявок
+  const canDownloadExcel = ['исполнитель', 'снабжение', 'администратор'].includes(userRole) && (isApproved || isCompleted);
   const canManageRequestFiles = user?.id === request?.author_id && (isDraft || isRejected);
-  const canManageInvoices = ['исполнитель', 'снабжение', 'executor'].includes(userRole) && isApproved;
+  const canManageInvoices = ['исполнитель', 'снабжение', 'executor', 'администратор'].includes(userRole) && (isApproved || isCompleted);
   const canUpdatePayment = canManageInvoices;
 
-  // Расширяем права: разрешаем нажимать "Исполнено" Исполнителю, Снабжению и Администратору
   const roleForButton = user?.role ? String(user.role).toLowerCase() : '';
   const isAllowedToComplete = ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(userRole) || ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(roleForButton);
 
-  // Кнопка показывается, если есть права и статус не равен "исполнено"
   const canMarkCompleted = isAllowedToComplete && statusValue !== 'исполнено';
 
   const getPaymentStatusTone = (status) => {
@@ -116,13 +118,11 @@ export function RequestDetailsPage() {
     }
   }
 
-  // НОВАЯ ФУНКЦИЯ ДЛЯ ПЕРЕВОДА В СТАТУС "ИСПОЛНЕНО"
   async function handleMarkCompleted() {
     if (!window.confirm('Вы уверены, что хотите перевести заявку в статус "Исполнено"?')) return;
     try {
       setSuccess('');
       setError('');
-      // Вызываем метод API для обновления статуса
       await requestApi.updateStatus(token, requestId, 'исполнено');
       setSuccess('Заявка успешно переведена в статус "Исполнено".');
       await loadRequest();
@@ -260,7 +260,6 @@ export function RequestDetailsPage() {
               <div><span>Обновлено</span><strong>{formatDateTime(request.updated_at)}</strong></div>
             </div>
 
-            {/* Блок изменения оплаты, даты и кнопка ИСПОЛНЕНО */}
             {(canUpdatePayment || canMarkCompleted) ? (
               <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginTop: '1rem', alignItems: 'flex-end' }}>
 
@@ -289,7 +288,6 @@ export function RequestDetailsPage() {
                   </>
                 ) : null}
 
-                {/* КНОПКА "ИСПОЛНЕНО" */}
                 {canMarkCompleted ? (
                   <div style={{ marginBottom: '4px' }}>
                     <button
@@ -364,7 +362,8 @@ export function RequestDetailsPage() {
             />
           </div>
 
-          {canManageInvoices || isApproved ? (
+          {/* Теперь счета видны и для СОГЛАСОВАННЫХ, и для ИСПОЛНЕННЫХ заявок */}
+          {canManageInvoices || isApproved || isCompleted ? (
             <div className="details-card">
               <div className="section-title-row">
                 <div>
