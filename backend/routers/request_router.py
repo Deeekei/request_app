@@ -349,14 +349,23 @@ async def get_materials(
 
 
 @router.get("/{request_id}/excel")
-async def get_exel(request_id: int, current_user: UserDB = Depends(require_executor), db: Session = Depends(get_db)):
+async def get_exel(
+        request_id: int,
+        current_user: UserDB = Depends(get_current_user),  # <-- ТЕПЕРЬ ПУСКАЕМ ВСЕХ АВТОРИЗОВАННЫХ
+        db: Session = Depends(get_db)
+):
     repo = RequestRepository(db)
     request = repo.get_by_id(request_id)
+
     if not request:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
-    if request.status != OrderStatusEnum.APPROVED:
-        raise HTTPException(status_code=400, detail="Заявка не согласована")
+
+    # <-- РАСШИРЯЕМ ДОСТУП: пускаем и согласованные, и исполненные заявки
+    if request.status not in [OrderStatusEnum.APPROVED, OrderStatusEnum.COMPLETED]:
+        raise HTTPException(status_code=400, detail="Заявка еще не согласована")
+
     file_path = generate_request_excel(request)
+
     return FileResponse(
         path=file_path,
         filename=f"Заявка_{request_id}.xlsx",

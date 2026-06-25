@@ -80,7 +80,7 @@ export function RequestDetailsPage() {
     && request.materials.some((item) => Boolean(item.overdraft ?? item.will_overdraft));
 
   // Расширяем видимость блоков для согласованных И исполненных заявок
-  const canDownloadExcel = ['исполнитель', 'снабжение', 'администратор'].includes(userRole) && (isApproved || isCompleted);
+  const canDownloadExcel = isApproved || isCompleted;
   const canManageRequestFiles = user?.id === request?.author_id && (isDraft || isRejected);
   const canManageInvoices = ['исполнитель', 'снабжение', 'executor', 'администратор'].includes(userRole) && (isApproved || isCompleted);
   const canUpdatePayment = canManageInvoices;
