@@ -51,6 +51,9 @@ export function RequestDetailsPage() {
     заказчик: (approve) => requestApi.customerReview(token, requestId, approve, reviewComment),
   }), [requestId, reviewComment, token]);
 
+  const userRole = normalizeRole(user?.role);
+  const roleForButton = user?.role ? String(user.role).toLowerCase() :
+
   const statusValue = normalizeEnum(request?.status).toLowerCase();
   const isDraft = statusValue === 'черновик';
   const isRejected = statusValue === 'отклонено' || statusValue === 'отклонена';
@@ -71,8 +74,6 @@ export function RequestDetailsPage() {
     ? 'Снабжение'
     : (rawResponsible || '—');
 
-  const userRole = normalizeRole(user?.role);
-
   const canReview = userRole === 'администратор'
     ? ['пто', 'директор', 'заказчик'].includes(rawResponsible)
     : Boolean(roleActions[userRole]) && rawResponsible === userRole;
@@ -86,7 +87,6 @@ export function RequestDetailsPage() {
   const canManageInvoices = ['исполнитель', 'снабжение', 'executor', 'администратор'].includes(userRole) && (isApproved || isCompleted);
   const canUpdatePayment = canManageInvoices;
 
-  const roleForButton = user?.role ? String(user.role).toLowerCase() : '';
   const isAllowedToComplete = ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(userRole) || ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(roleForButton);
 
   const canMarkCompleted = isAllowedToComplete && statusValue !== 'исполнено';
