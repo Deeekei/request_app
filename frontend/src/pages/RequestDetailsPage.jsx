@@ -52,7 +52,7 @@ export function RequestDetailsPage() {
   }), [requestId, reviewComment, token]);
 
   const userRole = normalizeRole(user?.role);
-  const roleForButton = user?.role ? String(user.role).toLowerCase() :
+  const roleForButton = user?.role ? String(user.role).toLowerCase() : '';
 
   const statusValue = normalizeEnum(request?.status).toLowerCase();
   const isDraft = statusValue === 'черновик';
