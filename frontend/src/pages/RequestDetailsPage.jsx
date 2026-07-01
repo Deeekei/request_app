@@ -244,7 +244,7 @@ export function RequestDetailsPage() {
               <div className="actions-row">
                 {canSubmit ? <button className="button primary" type="button" onClick={handleSubmitRequest}>{isRejected ? 'Повторно отправить' : 'Отправить на согласование'}</button> : null}
                 {canDownloadExcel ? <button className="button secondary" type="button" onClick={handleDownloadExcel}>Скачать Excel</button> : null}
-                {canDelete ? <button className="button danger" type="button" onClick={handleDeleteRequest}>Удалить черновик</button> : null}
+                {canDelete ? <button className="button danger" type="button" onClick={handleDeleteRequest}>Удалить</button> : null}
               </div>
             </div>
 
