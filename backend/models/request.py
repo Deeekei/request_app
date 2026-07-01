@@ -61,3 +61,4 @@ class RequestDB(Base):
     author = relationship("UserDB", back_populates="requests_created")
     comments = relationship("CommentDB", back_populates="request", cascade="all, delete-orphan")
     materials = relationship("RequestMaterial", back_populates="request", cascade="all, delete-orphan")
+    attachments = relationship("AttachmentDB", back_populates="request", cascade="all, delete-orphan")
