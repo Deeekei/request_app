@@ -292,33 +292,20 @@ class RequestService:
         if not request:
             raise ValueError("Заявка не найдена")
 
+        # 1. Проверяем особые права: Снабжение или Администратор
+        # Убедись, что константы (EXECUTOR, ADMIN) совпадают с твоим UserRoleEnum
         is_privileged = current_user.role in [UserRoleEnum.EXECUTOR, UserRoleEnum.ADMIN]
+
+        # 2. Правило для обычных пользователей: должен быть автором и это должен быть черновик
         is_author_of_draft = (current_user.id == request.author_id and request.status == OrderStatusEnum.DRAFT)
 
+        # 3. Вердикт: если ни то, ни другое, бьем по рукам
         if not (is_privileged or is_author_of_draft):
             raise PermissionError(
                 "Удалять заявку может только её автор (в статусе черновика) или отдел снабжения"
             )
 
         try:
-            # === НАЧАЛО БЛОКА ОЧИСТКИ СВЯЗЕЙ ===
-            # Если в твоем объекте request есть связи (relationships),
-            # мы можем пройтись по ним и сказать Алхимии "удалить":
-
-            if hasattr(request, 'materials') and request.materials:
-                for material in request.materials:
-                    self.db.delete(material)
-
-            if hasattr(request, 'comments') and request.comments:
-                for comment in request.comments:
-                    self.db.delete(comment)
-
-            if hasattr(request, 'attachments') and request.attachments:
-                for attachment in request.attachments:
-                    self.db.delete(attachment)
-            # === КОНЕЦ БЛОКА ОЧИСТКИ СВЯЗЕЙ ===
-
-            # Теперь, когда заявка "одинока", база разрешит её удалить
             self.request_repo.delete(request)
             self.db.commit()
         except Exception:
