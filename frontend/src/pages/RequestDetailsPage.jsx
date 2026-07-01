@@ -59,7 +59,8 @@ export function RequestDetailsPage() {
 
   const canEdit = (isDraft || isRejected) && user?.id === request?.author_id;
   const canSubmit = canEdit;
-  const canDelete = isDraft && user?.id === request?.author_id;
+  const canDelete = (isDraft && user?.id === request?.author_id) ||
+                  ['снабжение', 'исполнитель', 'executor', 'администратор', 'admin'].includes(roleForButton)
 
   const rawResponsible = normalizeRole(
     request?.current_responsible?.value || request?.current_responsible
