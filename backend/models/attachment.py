@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.models.enum import AttachmentTypeEnum
