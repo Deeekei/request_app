@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
-from backend.models.enum import AttachmentTypeEnum
+from backend.models.enum import AttachmentTypeEnum, InvoicePaymentStatusEnum, InvoiceApprovalStatusEnum
 
 
 class AttachmentRead(BaseModel):
