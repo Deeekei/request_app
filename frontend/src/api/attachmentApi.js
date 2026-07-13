@@ -42,12 +42,11 @@ export const attachmentApi = {
   },
 
   // НОВОЕ: Обновление статусов счета
-  updateInvoiceStatus(token, attachmentId, { payment_status, approval_status }) {
+  updateInvoiceStatus(token, attachmentId, payload) {
     return apiRequest(`/attachments/${attachmentId}/invoice-status`, {
       method: 'PATCH',
-      // Здесь json: true, так как мы отправляем JSON, а не FormData
       headers: buildAuthHeaders(token, { json: true }),
-      body: JSON.stringify({ payment_status, approval_status }),
+      body: JSON.stringify(payload), // Теперь дата точно отправится!
     });
   },
 

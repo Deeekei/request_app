@@ -59,12 +59,11 @@ class AttachmentTypeEnum(enum.Enum):
     UPD = "UPD"
 
 class InvoicePaymentStatusEnum(str, enum.Enum):
-    PAID = "оплачено"
-    UNPAID = "не оплачено"
-    DEFERRED = "в отсрочку"
-    ADVANCE_50 = "Аванс"
+    UNPAID = "UNPAID"
+    PAID = "PAID"
+    ADVANCE_50 = "ADVANCE_50"
+    DEFERRED = "DEFERRED"
 
-# 2. Статус рассмотрения (внутренний процесс)
 class InvoiceApprovalStatusEnum(str, enum.Enum):
-    UNDER_REVIEW = "на рассмотрении"
-    FOR_PAYMENT = "на оплату"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    FOR_PAYMENT = "FOR_PAYMENT"
