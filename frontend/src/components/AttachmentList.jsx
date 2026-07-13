@@ -24,7 +24,7 @@ export function AttachmentList({
   canDelete = false,
   attachmentType = null,
   emptyText = 'Файлы пока не прикреплены.',
-  canEditInvoiceStatus = false, // НОВОЕ: Разрешение на смену статусов счетов
+  canEditInvoiceStatus = false,
 }) {
   const { token } = useAuth();
   const [attachments, setAttachments] = useState([]);
@@ -70,7 +70,6 @@ export function AttachmentList({
 
   async function handleDelete(file) {
     if (!window.confirm(`Удалить файл «${file.original_name}»?`)) return;
-
     try {
       setError('');
       await attachmentApi.remove(token, file.id);
@@ -80,24 +79,23 @@ export function AttachmentList({
     }
   }
 
-  // НОВОЕ: Функция для смены статусов счета
+  // ОБНОВЛЕНО: теперь умеет отправлять дату
   async function handleStatusChange(file, field, value) {
     try {
       setError('');
-      const payload = field === 'payment'
-        ? { payment_status: value }
-        : { approval_status: value };
+      const payload = {};
+      if (field === 'payment') payload.payment_status = value;
+      else if (field === 'approval') payload.approval_status = value;
+      else if (field === 'delivery') payload.delivery_date = value || null; // Если стерли дату, отправит null
 
       await attachmentApi.updateInvoiceStatus(token, file.id, payload);
-      await loadAttachments(); // Перезагружаем список, чтобы увидеть изменения
+      await loadAttachments();
     } catch (err) {
-      setError(err.message || 'Не удалось обновить статус счета.');
+      setError(err.message || 'Не удалось обновить данные счета.');
     }
   }
 
-  if (isLoading) {
-    return <div className="empty-box">Загрузка файлов...</div>;
-  }
+  if (isLoading) return <div className="empty-box">Загрузка файлов...</div>;
 
   return (
     <div className="attachment-list">
@@ -113,33 +111,47 @@ export function AttachmentList({
               <span style={{ marginLeft: '8px', color: '#666' }}>{formatFileSize(file.size_bytes)}</span>
               {file.attachment_type ? <span style={{ marginLeft: '8px', fontSize: '0.9em' }}>{normalizeEnum(file.attachment_type)}</span> : null}
 
-              {/* НОВОЕ: Блок селектов только для счетов */}
+              {/* Блок управления счетом */}
               {String(file.attachment_type).toLowerCase() === 'invoice' && (
-                <div className="invoice-statuses" style={{ display: 'flex', gap: '15px', marginTop: '8px', background: '#f9f9f9', padding: '6px 10px', borderRadius: '4px', width: 'fit-content' }}>
+                <div className="invoice-statuses" style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginTop: '8px', background: '#f9f9f9', padding: '6px 10px', borderRadius: '4px', width: 'fit-content' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85em', color: '#333' }}>
                     Рассмотрение:
                     <select
-                      value={file.approval_status || 'на рассмотрении'}
+                      value={file.approval_status || 'UNDER_REVIEW'}
                       onChange={(e) => handleStatusChange(file, 'approval', e.target.value)}
                       disabled={!canEditInvoiceStatus}
                       style={{ padding: '2px 4px', fontSize: '1em' }}
                     >
-                      <option value="на рассмотрении">На рассмотрении</option>
-                      <option value="на оплату">На оплату</option>
+                      <option value="UNDER_REVIEW">На рассмотрении</option>
+                      <option value="FOR_PAYMENT">На оплату</option>
                     </select>
                   </label>
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85em', color: '#333' }}>
                     Оплата:
                     <select
-                      value={file.payment_status || 'не оплачено'}
+                      value={file.payment_status || 'UNPAID'}
                       onChange={(e) => handleStatusChange(file, 'payment', e.target.value)}
                       disabled={!canEditInvoiceStatus}
                       style={{ padding: '2px 4px', fontSize: '1em' }}
                     >
-                      <option value="не оплачено">Не оплачено</option>
-                      <option value="оплачено">Оплачено</option>
+                      <option value="UNPAID">Неоплачено</option>
+                      <option value="PAID">Оплачено</option>
+                      <option value="ADVANCE_50">Аванс 50%</option>
+                      <option value="DEFERRED">В отсрочку</option>
                     </select>
+                  </label>
+
+                  {/* НОВОЕ: Поле для даты поставки */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85em', color: '#333' }}>
+                    Дата поставки:
+                    <input
+                      type="date"
+                      value={file.delivery_date ? file.delivery_date.substring(0, 10) : ''}
+                      onChange={(e) => handleStatusChange(file, 'delivery', e.target.value)}
+                      disabled={!canEditInvoiceStatus}
+                      style={{ padding: '1px 4px', fontSize: '1em', border: '1px solid #ccc', borderRadius: '3px' }}
+                    />
                   </label>
                 </div>
               )}

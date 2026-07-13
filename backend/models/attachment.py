@@ -31,6 +31,7 @@ class AttachmentDB(Base):
         nullable=True,
         default=InvoiceApprovalStatusEnum.UNDER_REVIEW
     )
+    delivery_date = Column(Date, nullable=True)
     file_path = Column(String, nullable=False)
     content_type = Column(String, nullable=False)
     size_bytes = Column(Integer, nullable=False)

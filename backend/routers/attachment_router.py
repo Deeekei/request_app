@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-
+from datetime import date
 from backend.models.enum import AttachmentTypeEnum, OrderStatusEnum, UserRoleEnum
 from backend.database import get_db
 from backend.models.attachment import AttachmentDB
@@ -20,6 +20,7 @@ from backend.models.enum import InvoicePaymentStatusEnum, InvoiceApprovalStatusE
 class InvoiceStatusUpdate(BaseModel):
     payment_status: Optional[InvoicePaymentStatusEnum] = None
     approval_status: Optional[InvoiceApprovalStatusEnum] = None
+    delivery_date: Optional[date] = None
 
 router = APIRouter(prefix="/attachments", tags=["Attachments"])
 
@@ -228,22 +229,24 @@ def update_invoice_status(
     if not attachment:
         raise HTTPException(status_code=404, detail="Файл не найден")
 
-    if current_user.role not in [UserRoleEnum.EXECUTOR, UserRoleEnum.ADMIN]:
-        raise HTTPException(status_code=403, detail="Нет прав для смены статуса счета")
+    # Используем exclude_unset, чтобы обновлять только те поля, которые реально прислал фронтенд
+    update_data = data.model_dump(exclude_unset=True)
 
-    # Обновляем только те поля, которые прислал фронтенд
-    if data.payment_status is not None:
-        attachment.payment_status = data.payment_status
-    if data.approval_status is not None:
-        attachment.approval_status = data.approval_status
+    if "payment_status" in update_data:
+        attachment.payment_status = update_data["payment_status"]
+    if "approval_status" in update_data:
+        attachment.approval_status = update_data["approval_status"]
+    if "delivery_date" in update_data:
+        attachment.delivery_date = update_data["delivery_date"]
 
     db.commit()
     db.refresh(attachment)
 
     return {
-        "message": "Статусы счета обновлены",
+        "message": "Данные счета обновлены",
         "payment_status": attachment.payment_status,
-        "approval_status": attachment.approval_status
+        "approval_status": attachment.approval_status,
+        "delivery_date": attachment.delivery_date
     }
 
 @router.post("/requests/{request_id}/upd", response_model=AttachmentRead)
