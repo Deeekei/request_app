@@ -45,10 +45,8 @@ const objectOptions = [
 export function DashboardPage() {
   const { token, user } = useAuth();
   const normalizedRole = normalizeRole(user?.role);
-  const isRegularUser = normalizedRole === 'пользователь';
 
   const [requests, setRequests] = useState([]);
-  // Добавляем object в состояние фильтров
   const [filters, setFilters] = useState({ status: '', request_id: '', object: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -60,16 +58,7 @@ export function DashboardPage() {
 
     async function loadRequests() {
       try {
-        if (isRegularUser) {
-          const data = await requestApi.list(token, {
-            status: filters.status || undefined,
-            object: filters.object || undefined, // Передаем объект в API
-            user_id: user?.id,
-          });
-          if (!cancelled) setRequests(data);
-          return;
-        }
-
+        // Поиск по конкретному ID
         if (filters.request_id) {
           const request = await requestApi.getById(token, filters.request_id);
           const matchesStatus = !filters.status || normalizeEnum(request.status).toLowerCase() === filters.status.toLowerCase();
@@ -78,9 +67,10 @@ export function DashboardPage() {
           return;
         }
 
+        // Общий список (теперь без ограничений по user_id)
         const data = await requestApi.list(token, {
           status: filters.status || undefined,
-          object: filters.object || undefined, // Передаем объект в API
+          object: filters.object || undefined,
         });
         if (!cancelled) setRequests(data);
       } catch (err) {
@@ -98,7 +88,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [filters.request_id, filters.status, filters.object, isRegularUser, token, user?.id]);
+  }, [filters.request_id, filters.status, filters.object, token]);
 
   const draftCount = useMemo(
     () => requests.filter((item) => String(item.status?.value || item.status).includes('черновик')).length,
@@ -108,8 +98,8 @@ export function DashboardPage() {
   return (
     <section className="page-section">
       <PageHeader
-        title={isRegularUser ? 'Мои заявки' : 'Все заявки'}
-        subtitle={isRegularUser ? 'Просмотр ваших заявок по статусам и объектам.' : 'Просмотр и поиск заявок по статусу, объекту и ID.'}
+        title="Все заявки"
+        subtitle="Просмотр и поиск заявок по статусу, объекту и ID."
         actions={
           normalizedRole !== 'снабжение' ? (
             <Link className="button primary" to="/requests/new">Создать заявку</Link>
@@ -128,7 +118,7 @@ export function DashboardPage() {
           </select>
         </div>
 
-        {/* НОВЫЙ Фильтр по объекту */}
+        {/* Фильтр по объекту */}
         <div className="field">
           <label>Объект</label>
           <select value={filters.object} onChange={(e) => setFilters((prev) => ({ ...prev, object: e.target.value }))}>
@@ -138,17 +128,15 @@ export function DashboardPage() {
           </select>
         </div>
 
-        {/* Поиск по ID (только для руководителей/снабжения) */}
-        {!isRegularUser && (
-          <div className="field">
-            <label>ID заявки</label>
-            <input
-              value={filters.request_id}
-              onChange={(e) => setFilters((prev) => ({ ...prev, request_id: e.target.value.replace(/[^0-9]/g, '') }))}
-              placeholder="Например, 15"
-            />
-          </div>
-        )}
+        {/* Поиск по ID (теперь доступен всем) */}
+        <div className="field">
+          <label>ID заявки</label>
+          <input
+            value={filters.request_id}
+            onChange={(e) => setFilters((prev) => ({ ...prev, request_id: e.target.value.replace(/[^0-9]/g, '') }))}
+            placeholder="Например, 15"
+          />
+        </div>
 
         <div className="summary-box">
           <span>Всего</span>
