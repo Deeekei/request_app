@@ -13,6 +13,13 @@ from backend.models.request import RequestDB
 from backend.models.user import UserDB
 from backend.routers.auth_router import get_current_user
 from backend.schemas.attachment import AttachmentRead
+from pydantic import BaseModel
+from typing import Optional
+from backend.models.enum import InvoicePaymentStatusEnum, InvoiceApprovalStatusEnum
+
+class InvoiceStatusUpdate(BaseModel):
+    payment_status: Optional[InvoicePaymentStatusEnum] = None
+    approval_status: Optional[InvoiceApprovalStatusEnum] = None
 
 router = APIRouter(prefix="/attachments", tags=["Attachments"])
 
@@ -196,6 +203,9 @@ async def delete_attachment(
                 status_code=400,
                 detail="Счёт можно удалить только у согласованной заявки",
             )
+    elif attachment.attachment_type == AttachmentTypeEnum.UPD:
+        if current_user.role != UserRoleEnum.EXECUTOR:
+            raise HTTPException(status_code=403, detail="Удалить УПД может только Снабжение")
 
     if os.path.exists(attachment.file_path):
         os.remove(attachment.file_path)
@@ -204,3 +214,57 @@ async def delete_attachment(
     db.commit()
 
     return {"ok": True}
+
+
+@router.patch("/{attachment_id}/invoice-status")
+def update_invoice_status(
+        attachment_id: int,
+        data: InvoiceStatusUpdate,
+        current_user: UserDB = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    attachment = db.query(AttachmentDB).filter(AttachmentDB.id == attachment_id).first()
+
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Файл не найден")
+
+    if current_user.role not in [UserRoleEnum.EXECUTOR, UserRoleEnum.ADMIN]:
+        raise HTTPException(status_code=403, detail="Нет прав для смены статуса счета")
+
+    # Обновляем только те поля, которые прислал фронтенд
+    if data.payment_status is not None:
+        attachment.payment_status = data.payment_status
+    if data.approval_status is not None:
+        attachment.approval_status = data.approval_status
+
+    db.commit()
+    db.refresh(attachment)
+
+    return {
+        "message": "Статусы счета обновлены",
+        "payment_status": attachment.payment_status,
+        "approval_status": attachment.approval_status
+    }
+
+@router.post("/requests/{request_id}/upd", response_model=AttachmentRead)
+async def upload_upd(
+    request_id: int,
+    file: UploadFile = File(...),
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    request = db.query(RequestDB).filter(RequestDB.id == request_id).first()
+
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    # УПД может загружать только снабжение (или автор, если нужно — поправь условие)
+    if current_user.role != UserRoleEnum.EXECUTOR:
+        raise HTTPException(status_code=403, detail="УПД может добавить только Снабжение")
+
+    return await save_attachment_file(
+        request_id=request_id,
+        file=file,
+        attachment_type=AttachmentTypeEnum.UPD, # Используем новый тип
+        db=db,
+    )

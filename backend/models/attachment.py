@@ -6,6 +6,7 @@ from backend.database import Base
 import os
 import logging
 from sqlalchemy import event
+from backend.models.enum import InvoicePaymentStatusEnum, InvoiceApprovalStatusEnum
 
 class AttachmentDB(Base):
     __tablename__ = 'attachment'
@@ -18,6 +19,17 @@ class AttachmentDB(Base):
         nullable=False,
         default=AttachmentTypeEnum.REQUEST_FILE,
         index=True,
+    )
+    payment_status = Column(
+        Enum(InvoicePaymentStatusEnum),
+        nullable=True,
+        default=InvoicePaymentStatusEnum.UNPAID
+    )
+
+    approval_status = Column(
+        Enum(InvoiceApprovalStatusEnum),
+        nullable=True,
+        default=InvoiceApprovalStatusEnum.UNDER_REVIEW
     )
     file_path = Column(String, nullable=False)
     content_type = Column(String, nullable=False)

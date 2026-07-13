@@ -24,6 +24,7 @@ export function AttachmentList({
   canDelete = false,
   attachmentType = null,
   emptyText = 'Файлы пока не прикреплены.',
+  canEditInvoiceStatus = false, // НОВОЕ: Разрешение на смену статусов счетов
 }) {
   const { token } = useAuth();
   const [attachments, setAttachments] = useState([]);
@@ -79,6 +80,21 @@ export function AttachmentList({
     }
   }
 
+  // НОВОЕ: Функция для смены статусов счета
+  async function handleStatusChange(file, field, value) {
+    try {
+      setError('');
+      const payload = field === 'payment'
+        ? { payment_status: value }
+        : { approval_status: value };
+
+      await attachmentApi.updateInvoiceStatus(token, file.id, payload);
+      await loadAttachments(); // Перезагружаем список, чтобы увидеть изменения
+    } catch (err) {
+      setError(err.message || 'Не удалось обновить статус счета.');
+    }
+  }
+
   if (isLoading) {
     return <div className="empty-box">Загрузка файлов...</div>;
   }
@@ -91,13 +107,45 @@ export function AttachmentList({
         <div className="empty-box">{emptyText}</div>
       ) : (
         attachments.map((file) => (
-          <div className="attachment-item" key={file.id}>
-            <div className="attachment-item__info">
+          <div className="attachment-item" key={file.id} style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div className="attachment-item__info" style={{ flex: 1 }}>
               <strong>{file.original_name}</strong>
-              <span>{formatFileSize(file.size_bytes)}</span>
-              {file.attachment_type ? <span>{normalizeEnum(file.attachment_type)}</span> : null}
+              <span style={{ marginLeft: '8px', color: '#666' }}>{formatFileSize(file.size_bytes)}</span>
+              {file.attachment_type ? <span style={{ marginLeft: '8px', fontSize: '0.9em' }}>{normalizeEnum(file.attachment_type)}</span> : null}
+
+              {/* НОВОЕ: Блок селектов только для счетов */}
+              {String(file.attachment_type).toLowerCase() === 'invoice' && (
+                <div className="invoice-statuses" style={{ display: 'flex', gap: '15px', marginTop: '8px', background: '#f9f9f9', padding: '6px 10px', borderRadius: '4px', width: 'fit-content' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85em', color: '#333' }}>
+                    Рассмотрение:
+                    <select
+                      value={file.approval_status || 'на рассмотрении'}
+                      onChange={(e) => handleStatusChange(file, 'approval', e.target.value)}
+                      disabled={!canEditInvoiceStatus}
+                      style={{ padding: '2px 4px', fontSize: '1em' }}
+                    >
+                      <option value="на рассмотрении">На рассмотрении</option>
+                      <option value="на оплату">На оплату</option>
+                    </select>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85em', color: '#333' }}>
+                    Оплата:
+                    <select
+                      value={file.payment_status || 'не оплачено'}
+                      onChange={(e) => handleStatusChange(file, 'payment', e.target.value)}
+                      disabled={!canEditInvoiceStatus}
+                      style={{ padding: '2px 4px', fontSize: '1em' }}
+                    >
+                      <option value="не оплачено">Не оплачено</option>
+                      <option value="оплачено">Оплачено</option>
+                    </select>
+                  </label>
+                </div>
+              )}
             </div>
-            <div className="attachment-actions">
+
+            <div className="attachment-actions" style={{ display: 'flex', alignItems: 'flex-start', gap: '5px' }}>
               <button className="button secondary small" type="button" onClick={() => handleDownload(file)}>
                 Скачать
               </button>

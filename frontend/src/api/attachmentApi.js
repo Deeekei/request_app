@@ -25,11 +25,30 @@ export const attachmentApi = {
     });
   },
 
-  // Обратная совместимость со старым UI: по умолчанию грузим файл заявки.
+  // НОВОЕ: Метод для загрузки УПД
+  uploadUpd(token, requestId, file) {
+    return apiRequest(`/attachments/requests/${requestId}/upd`, {
+      method: 'POST',
+      headers: buildAuthHeaders(token, { json: false }),
+      body: makeFormData(file),
+    });
+  },
+
+  // ОБНОВЛЕНО: Обратная совместимость. Теперь поддерживает и UPD.
   upload(token, requestId, file, attachmentType = 'REQUEST_FILE') {
-    return attachmentType === 'INVOICE'
-      ? this.uploadInvoice(token, requestId, file)
-      : this.uploadRequestFile(token, requestId, file);
+    if (attachmentType === 'INVOICE') return this.uploadInvoice(token, requestId, file);
+    if (attachmentType === 'UPD') return this.uploadUpd(token, requestId, file);
+    return this.uploadRequestFile(token, requestId, file);
+  },
+
+  // НОВОЕ: Обновление статусов счета
+  updateInvoiceStatus(token, attachmentId, { payment_status, approval_status }) {
+    return apiRequest(`/attachments/${attachmentId}/invoice-status`, {
+      method: 'PATCH',
+      // Здесь json: true, так как мы отправляем JSON, а не FormData
+      headers: buildAuthHeaders(token, { json: true }),
+      body: JSON.stringify({ payment_status, approval_status }),
+    });
   },
 
   list(token, requestId, attachmentType = null) {

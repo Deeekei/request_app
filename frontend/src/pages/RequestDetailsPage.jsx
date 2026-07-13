@@ -24,6 +24,9 @@ export function RequestDetailsPage() {
   const [requestFilesRefreshKey, setRequestFilesRefreshKey] = useState(0);
   const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
 
+  // НОВОЕ: Добавляем состояние для обновления списка УПД
+  const [updRefreshKey, setUpdRefreshKey] = useState(0);
+
   async function loadRequest() {
     setIsLoading(true);
     setError('');
@@ -58,7 +61,7 @@ export function RequestDetailsPage() {
   const isDraft = statusValue === 'черновик';
   const isRejected = statusValue === 'отклонено' || statusValue === 'отклонена';
   const isApproved = statusValue === 'согласовано';
-  const isCompleted = statusValue === 'исполнено'; // Добавили проверку на исполнено
+  const isCompleted = statusValue === 'исполнено';
 
   const canEdit = (isDraft || isRejected) && user?.id === request?.author_id;
   const canSubmit = canEdit;
@@ -69,7 +72,6 @@ export function RequestDetailsPage() {
     request?.current_responsible?.value || request?.current_responsible
   );
 
-  // Снабжение остается ответственным и в согласованных, и в исполненных
   const currentResponsible = rawResponsible === 'снабжение' && (isApproved || isCompleted)
     ? 'Снабжение'
     : (rawResponsible || '—');
@@ -81,7 +83,6 @@ export function RequestDetailsPage() {
   const hasOverdraftMaterials = Array.isArray(request?.materials)
     && request.materials.some((item) => Boolean(item.overdraft ?? item.will_overdraft));
 
-  // Расширяем видимость блоков для согласованных И исполненных заявок
   const canDownloadExcel = isApproved || isCompleted;
   const canManageRequestFiles = user?.id === request?.author_id && (isDraft || isRejected);
   const canManageInvoices = ['исполнитель', 'снабжение', 'executor', 'администратор'].includes(userRole) && (isApproved || isCompleted);
@@ -363,7 +364,6 @@ export function RequestDetailsPage() {
             />
           </div>
 
-          {/* Теперь счета видны и для СОГЛАСОВАННЫХ, и для ИСПОЛНЕННЫХ заявок */}
           {canManageInvoices || isApproved || isCompleted ? (
             <div className="details-card">
               <div className="section-title-row">
@@ -386,7 +386,36 @@ export function RequestDetailsPage() {
                 attachmentType="INVOICE"
                 refreshKey={invoiceRefreshKey}
                 canDelete={canManageInvoices}
+                canEditInvoiceStatus={canManageInvoices} // НОВОЕ: Передаем право менять статусы счетов
                 emptyText="Счета пока не прикреплены."
+              />
+            </div>
+          ) : null}
+
+          {/* НОВОЕ: Добавляем секцию УПД */}
+          {canManageInvoices || isApproved || isCompleted ? (
+            <div className="details-card">
+              <div className="section-title-row">
+                <div>
+                  <h2>УПД (Закрывающие документы)</h2>
+                  <p>УПД загружаются после оплаты или получения товара.</p>
+                </div>
+              </div>
+              {canManageInvoices ? (
+                <AttachmentUpload
+                  requestId={request.id}
+                  attachmentType="UPD"
+                  title="Добавить УПД"
+                  buttonLabel="Загрузить УПД"
+                  onUploaded={() => setUpdRefreshKey((value) => value + 1)}
+                />
+              ) : null}
+              <AttachmentList
+                requestId={request.id}
+                attachmentType="UPD"
+                refreshKey={updRefreshKey}
+                canDelete={canManageInvoices}
+                emptyText="УПД пока не прикреплены."
               />
             </div>
           ) : null}
