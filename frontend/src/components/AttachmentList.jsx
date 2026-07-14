@@ -79,14 +79,14 @@ export function AttachmentList({
     }
   }
 
-  // ОБНОВЛЕНО: теперь умеет отправлять дату
   async function handleStatusChange(file, field, value) {
     try {
       setError('');
       const payload = {};
       if (field === 'payment') payload.payment_status = value;
       else if (field === 'approval') payload.approval_status = value;
-      else if (field === 'delivery') payload.delivery_date = value || null; // Если стерли дату, отправит null
+      else if (field === 'delivery') payload.delivery_date = value || null;
+      else if (field === 'is_delivered') payload.is_delivered = value; // НОВОЕ: Отправляем статус доставки
 
       await attachmentApi.updateInvoiceStatus(token, file.id, payload);
       await loadAttachments();
@@ -111,7 +111,6 @@ export function AttachmentList({
               <span style={{ marginLeft: '8px', color: '#666' }}>{formatFileSize(file.size_bytes)}</span>
               {file.attachment_type ? <span style={{ marginLeft: '8px', fontSize: '0.9em' }}>{normalizeEnum(file.attachment_type)}</span> : null}
 
-              {/* Блок управления счетом */}
               {String(file.attachment_type).toLowerCase() === 'invoice' && (
                 <div className="invoice-statuses" style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginTop: '8px', background: '#f9f9f9', padding: '6px 10px', borderRadius: '4px', width: 'fit-content' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85em', color: '#333' }}>
@@ -142,9 +141,8 @@ export function AttachmentList({
                     </select>
                   </label>
 
-                  {/* НОВОЕ: Поле для даты поставки */}
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85em', color: '#333' }}>
-                    Дата поставки:
+                    Ожидается:
                     <input
                       type="date"
                       value={file.delivery_date ? file.delivery_date.substring(0, 10) : ''}
@@ -152,6 +150,20 @@ export function AttachmentList({
                       disabled={!canEditInvoiceStatus}
                       style={{ padding: '1px 4px', fontSize: '1em', border: '1px solid #ccc', borderRadius: '3px' }}
                     />
+                  </label>
+
+                  {/* НОВОЕ: Статус доставки */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85em', color: '#333' }}>
+                    Доставка:
+                    <select
+                      value={file.is_delivered ? 'true' : 'false'}
+                      onChange={(e) => handleStatusChange(file, 'is_delivered', e.target.value === 'true')}
+                      disabled={!canEditInvoiceStatus}
+                      style={{ padding: '2px 4px', fontSize: '1em', fontWeight: file.is_delivered ? 'bold' : 'normal', color: file.is_delivered ? '#10b981' : '#333' }}
+                    >
+                      <option value="false">Не доставлено</option>
+                      <option value="true">Доставлено</option>
+                    </select>
                   </label>
                 </div>
               )}

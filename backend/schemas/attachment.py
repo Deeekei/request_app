@@ -12,6 +12,7 @@ class AttachmentRead(BaseModel):
     size_bytes: int
     uploaded_at: datetime
     delivery_date: date | None = None
+    is_delivered: bool = False
     payment_status: InvoicePaymentStatusEnum | None = None
     approval_status: InvoiceApprovalStatusEnum | None = None
     model_config = ConfigDict(from_attributes=True)

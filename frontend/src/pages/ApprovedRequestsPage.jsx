@@ -34,8 +34,8 @@ export function ApprovedRequestsPage() {
   const [requests, setRequests] = useState([]);
   const [selectedObject, setSelectedObject] = useState('');
 
-  // НОВОЕ: Состояние для управления сортировкой (по умолчанию - по возрастанию)
-  const [sortOrder, setSortOrder] = useState('date_asc');
+  // ИЗМЕНЕНО: Теперь по умолчанию стоит сортировка 'default' (Сначала новые)
+  const [sortOrder, setSortOrder] = useState('default');
 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -48,7 +48,6 @@ export function ApprovedRequestsPage() {
         setIsLoading(true);
         setError('');
 
-        // Запрашиваем заявки с бэкенда (без фильтра по дате, берем все согласованные)
         const data = await requestApi.list(token, {
           status: 'согласовано',
           object: selectedObject || undefined
@@ -67,13 +66,12 @@ export function ApprovedRequestsPage() {
     };
   }, [token, selectedObject]);
 
-  // НОВОЕ: Сортируем заявки перед тем, как их отрисовать
   const sortedRequests = useMemo(() => {
     const arr = [...requests];
 
     if (sortOrder === 'date_asc') {
       return arr.sort((a, b) => {
-        if (!a.real_delivery_date) return 1; // Заявки без даты отправляем в конец
+        if (!a.real_delivery_date) return 1;
         if (!b.real_delivery_date) return -1;
         return new Date(a.real_delivery_date) - new Date(b.real_delivery_date);
       });
@@ -87,7 +85,8 @@ export function ApprovedRequestsPage() {
       });
     }
 
-    return arr; // Если выбрано "По умолчанию" (по ID/дате создания)
+    // По умолчанию возвращаем массив так, как его отдал бэкенд (обычно сортировка по ID убыванию)
+    return arr;
   }, [requests, sortOrder]);
 
   return (
@@ -110,16 +109,16 @@ export function ApprovedRequestsPage() {
           </select>
         </div>
 
-        {/* НОВОЕ: Выпадающий список для сортировки */}
         <div className="field" style={{ flex: '1', minWidth: '200px' }}>
           <label>Сортировка</label>
           <select
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
           >
+            {/* ИЗМЕНЕНО: Перенесли "Сначала новые" на самый верх */}
+            <option value="default">Сначала новые</option>
             <option value="date_asc">По дате поставки (возрастание)</option>
             <option value="date_desc">По дате поставки (убывание)</option>
-            <option value="default">Сначала новые (по умолчанию)</option>
           </select>
         </div>
 
@@ -134,7 +133,6 @@ export function ApprovedRequestsPage() {
       {!isLoading && !requests.length ? <div className="empty-box">Нет согласованных заявок по заданным критериям.</div> : null}
 
       <div className="stack-list">
-        {/* НОВОЕ: Отрисовываем отсортированный массив */}
         {sortedRequests.map((request) => <RequestCard key={request.id} request={request} />)}
       </div>
     </section>

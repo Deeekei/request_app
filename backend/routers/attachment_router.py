@@ -21,6 +21,7 @@ class InvoiceStatusUpdate(BaseModel):
     payment_status: Optional[InvoicePaymentStatusEnum] = None
     approval_status: Optional[InvoiceApprovalStatusEnum] = None
     delivery_date: Optional[date] = None
+    is_delivered: Optional[bool] = None
 
 router = APIRouter(prefix="/attachments", tags=["Attachments"])
 
@@ -238,6 +239,8 @@ def update_invoice_status(
         attachment.approval_status = update_data["approval_status"]
     if "delivery_date" in update_data:
         attachment.delivery_date = update_data["delivery_date"]
+    if "is_delivered" in update_data:
+        attachment.is_delivered = update_data["is_delivered"]
 
     db.commit()
     db.refresh(attachment)

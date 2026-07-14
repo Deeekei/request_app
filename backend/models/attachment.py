@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Date
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Date, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from backend.models.enum import AttachmentTypeEnum
@@ -25,7 +25,7 @@ class AttachmentDB(Base):
         nullable=True,
         default=InvoicePaymentStatusEnum.UNPAID
     )
-
+    is_delivered = Column(Boolean, default=False)
     approval_status = Column(
         Enum(InvoiceApprovalStatusEnum),
         nullable=True,
