@@ -23,8 +23,6 @@ export function RequestDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [requestFilesRefreshKey, setRequestFilesRefreshKey] = useState(0);
   const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
-
-  // НОВОЕ: Добавляем состояние для обновления списка УПД
   const [updRefreshKey, setUpdRefreshKey] = useState(0);
 
   async function loadRequest() {
@@ -91,6 +89,11 @@ export function RequestDetailsPage() {
   const isAllowedToComplete = ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(userRole) || ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(roleForButton);
 
   const canMarkCompleted = isAllowedToComplete && statusValue !== 'исполнено';
+  const canAssignResponsible = ['снабжение', 'procurement', 'администратор', 'admin'].includes(roleForButton);
+
+  const materialResponsibles = Array.from(
+    new Set((request?.materials || []).map((m) => m.responsible).filter(Boolean))
+  ).join(', ');
 
   const getPaymentStatusTone = (status) => {
     const val = normalizeEnum(status);
@@ -240,7 +243,7 @@ export function RequestDetailsPage() {
                   Оплата: {normalizeEnum(request.payment_status)}
                 </span>
 
-                <span className="muted-pill">Ответственный: {currentResponsible}</span>
+                <span className="muted-pill">Ответственный (согласование): {currentResponsible}</span>
               </div>
               <div className="actions-row">
                 {canSubmit ? <button className="button primary" type="button" onClick={handleSubmitRequest}>{isRejected ? 'Повторно отправить' : 'Отправить на согласование'}</button> : null}
@@ -254,12 +257,12 @@ export function RequestDetailsPage() {
               <div><span>Автор</span><strong>{request.author_name}</strong></div>
               <div><span>Объект</span><strong>{normalizeEnum(request.object)}</strong></div>
               <div><span>Тип заявки</span><strong>{normalizeEnum(request.request_type)}</strong></div>
+              <div><span>Закупка (материалы)</span><strong style={{color: '#10b981'}}>{materialResponsibles || '—'}</strong></div>
               <div><span>Шифр проекта</span><strong>{request.agreement}</strong></div>
               <div><span>Секция</span><strong>{request.section || '—'}</strong></div>
               <div><span>Дата доставки</span><strong>{request.delivery_date ? formatDate(request.delivery_date) : '—'}</strong></div>
               <div><span>Факт. дата поставки</span><strong>{request.real_delivery_date ? formatDate(request.real_delivery_date) : '—'}</strong></div>
               <div><span>Создано</span><strong>{formatDateTime(request.created_at)}</strong></div>
-              <div><span>Обновлено</span><strong>{formatDateTime(request.updated_at)}</strong></div>
             </div>
 
             {(canUpdatePayment || canMarkCompleted) ? (
@@ -317,7 +320,13 @@ export function RequestDetailsPage() {
             {canReview && hasOverdraftMaterials ? (
               <Alert type="error">В заявке есть материалы с перерасходом. Проверьте проблемные позиции перед принятием решения.</Alert>
             ) : null}
-            <MaterialsTable materials={request.materials} highlightOverdraft={canReview} />
+            <MaterialsTable
+              materials={request.materials}
+              highlightOverdraft={canReview}
+              requestId={request.id}
+              showResponsible={isApproved || isCompleted}
+              canEditResponsible={canAssignResponsible}
+            />
           </div>
 
           {canReview ? (
@@ -386,13 +395,12 @@ export function RequestDetailsPage() {
                 attachmentType="INVOICE"
                 refreshKey={invoiceRefreshKey}
                 canDelete={canManageInvoices}
-                canEditInvoiceStatus={canManageInvoices} // НОВОЕ: Передаем право менять статусы счетов
+                canEditInvoiceStatus={canManageInvoices}
                 emptyText="Счета пока не прикреплены."
               />
             </div>
           ) : null}
 
-          {/* НОВОЕ: Добавляем секцию УПД */}
           {canManageInvoices || isApproved || isCompleted ? (
             <div className="details-card">
               <div className="section-title-row">

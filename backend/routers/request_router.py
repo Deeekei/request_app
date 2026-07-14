@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Optional
-
+from pydantic import BaseModel
 from multipart import file_path
 from datetime import date
 from backend.schemas.request_models import RequestCreate, RequestUpdate, RequestRead
@@ -25,6 +25,8 @@ from backend.routers.auth_router import require_executor
 
 router = APIRouter(prefix="/requests", tags=["Заявки"])
 
+class MaterialResponsibleUpdate(BaseModel):
+    responsible: Optional[str] = None
 
 def to_request_read(req) -> RequestRead:
     materials = [
@@ -44,6 +46,7 @@ def to_request_read(req) -> RequestRead:
                 ),
                 "manual_comment": m.manual_comment if m.is_manual else None,
                 "created_at": m.created_at,
+                "responsible": m.responsible,
             }
         )
         for m in req.materials
@@ -433,3 +436,31 @@ def update_request_status(
     )
 
     return updated_request
+
+
+@router.patch("/{request_id}/materials/{material_id}/responsible")
+def update_material_responsible(
+        request_id: int,
+        material_id: int,
+        payload: MaterialResponsibleUpdate,
+        current_user: UserDB = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    # НОВОЕ: Проверка роли пользователя
+    allowed_roles = ["снабжение", "администратор", "admin", "procurement"]
+    if str(current_user.role).lower() not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Только снабжение или администратор могут назначать ответственных")
+
+    from backend.models.request import RequestMaterialDB
+
+    mat = db.query(RequestMaterialDB).filter(
+        RequestMaterialDB.id == material_id,
+        RequestMaterialDB.request_id == request_id
+    ).first()
+
+    if not mat:
+        raise HTTPException(status_code=404, detail="Материал не найден")
+
+    mat.responsible = payload.responsible
+    db.commit()
+    return {"status": "ok"}

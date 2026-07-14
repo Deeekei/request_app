@@ -33,9 +33,10 @@ export function ApprovedRequestsPage() {
   const { token } = useAuth();
   const [requests, setRequests] = useState([]);
   const [selectedObject, setSelectedObject] = useState('');
-
-  // ИЗМЕНЕНО: Теперь по умолчанию стоит сортировка 'default' (Сначала новые)
   const [sortOrder, setSortOrder] = useState('default');
+
+  // НОВОЕ: Состояние для фильтра по снабженцу
+  const [selectedResponsible, setSelectedResponsible] = useState('');
 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -67,7 +68,14 @@ export function ApprovedRequestsPage() {
   }, [token, selectedObject]);
 
   const sortedRequests = useMemo(() => {
-    const arr = [...requests];
+    let arr = [...requests];
+
+    // НОВОЕ: Фильтруем заявки, оставляя только те, где в материалах есть выбранный снабженец
+    if (selectedResponsible) {
+      arr = arr.filter(req =>
+        req.materials && req.materials.some(m => m.responsible === selectedResponsible)
+      );
+    }
 
     if (sortOrder === 'date_asc') {
       return arr.sort((a, b) => {
@@ -85,9 +93,8 @@ export function ApprovedRequestsPage() {
       });
     }
 
-    // По умолчанию возвращаем массив так, как его отдал бэкенд (обычно сортировка по ID убыванию)
     return arr;
-  }, [requests, sortOrder]);
+  }, [requests, sortOrder, selectedResponsible]); // Добавили selectedResponsible в зависимости
 
   return (
     <section className="page-section">
@@ -97,7 +104,7 @@ export function ApprovedRequestsPage() {
       />
 
       <div className="details-card compact filters-bar" style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div className="field" style={{ flex: '1', minWidth: '200px' }}>
+        <div className="field" style={{ flex: '1', minWidth: '180px' }}>
           <label>Объект</label>
           <select
             value={selectedObject}
@@ -109,13 +116,26 @@ export function ApprovedRequestsPage() {
           </select>
         </div>
 
-        <div className="field" style={{ flex: '1', minWidth: '200px' }}>
+        {/* НОВОЕ: Выпадающий список для фильтрации по снабженцу */}
+        <div className="field" style={{ flex: '1', minWidth: '150px' }}>
+          <label>Снабженец</label>
+          <select
+            value={selectedResponsible}
+            onChange={(e) => setSelectedResponsible(e.target.value)}
+          >
+            <option value="">Все</option>
+            <option value="Шубин">Шубин</option>
+            <option value="Магадеева">Магадеева</option>
+            <option value="Хабибуллин">Хабибуллин</option>
+          </select>
+        </div>
+
+        <div className="field" style={{ flex: '1', minWidth: '180px' }}>
           <label>Сортировка</label>
           <select
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
           >
-            {/* ИЗМЕНЕНО: Перенесли "Сначала новые" на самый верх */}
             <option value="default">Сначала новые</option>
             <option value="date_asc">По дате поставки (возрастание)</option>
             <option value="date_desc">По дате поставки (убывание)</option>
@@ -124,13 +144,13 @@ export function ApprovedRequestsPage() {
 
         <div className="summary-box" style={{ marginBottom: '4px' }}>
           <span>Найдено: </span>
-          <strong>{requests.length}</strong>
+          <strong>{sortedRequests.length}</strong>
         </div>
       </div>
 
       {error ? <Alert type="error">{error}</Alert> : null}
       {isLoading ? <div className="empty-box">Загрузка заявок...</div> : null}
-      {!isLoading && !requests.length ? <div className="empty-box">Нет согласованных заявок по заданным критериям.</div> : null}
+      {!isLoading && !sortedRequests.length ? <div className="empty-box">Нет согласованных заявок по заданным критериям.</div> : null}
 
       <div className="stack-list">
         {sortedRequests.map((request) => <RequestCard key={request.id} request={request} />)}

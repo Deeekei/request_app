@@ -147,4 +147,11 @@ export const requestApi = {
 
     return response.json();
   },
+  updateMaterialResponsible(token, requestId, materialId, responsible) {
+    return apiRequest(`/requests/${requestId}/materials/${materialId}/responsible`, {
+      method: 'PATCH',
+      headers: buildAuthHeaders(token),
+      body: JSON.stringify({ responsible }),
+    });
+  },
 };

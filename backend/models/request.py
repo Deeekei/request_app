@@ -18,6 +18,7 @@ class RequestMaterial(Base):
     manual_unit = Column(String, nullable=True)
     manual_comment = Column(String, nullable=True)
     quantity = Column(Float, nullable=False)  # запрошенное количество
+    responsible = Column(String, nullable=True)
     overdraft = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
