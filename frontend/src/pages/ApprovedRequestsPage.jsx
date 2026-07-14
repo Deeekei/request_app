@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { requestApi } from '../api/requestApi';
 import { Alert } from '../components/Alert';
 import { PageHeader } from '../components/PageHeader';
 import { RequestCard } from '../components/RequestCard';
 import { useAuth } from '../context/AuthContext';
 
-// Список объектов для фильтра
 const objectOptions = [
   { value: '', label: 'Все объекты' },
   { value: 'ЖК "Аурика"', label: 'ЖК "Аурика"' },
@@ -33,7 +32,11 @@ const objectOptions = [
 export function ApprovedRequestsPage() {
   const { token } = useAuth();
   const [requests, setRequests] = useState([]);
-  const [selectedObject, setSelectedObject] = useState(''); // Состояние для фильтра по объекту
+  const [selectedObject, setSelectedObject] = useState('');
+
+  // НОВОЕ: Состояние для управления сортировкой (по умолчанию - по возрастанию)
+  const [sortOrder, setSortOrder] = useState('date_asc');
+
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -44,10 +47,11 @@ export function ApprovedRequestsPage() {
       try {
         setIsLoading(true);
         setError('');
-        // Отправляем запрос с фильтром по статусу и объекту
+
+        // Запрашиваем заявки с бэкенда (без фильтра по дате, берем все согласованные)
         const data = await requestApi.list(token, {
           status: 'согласовано',
-          object: selectedObject || undefined // Если объект не выбран, передаем undefined
+          object: selectedObject || undefined
         });
         if (!cancelled) setRequests(data);
       } catch (err) {
@@ -61,7 +65,30 @@ export function ApprovedRequestsPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, selectedObject]); // Добавили selectedObject в зависимости
+  }, [token, selectedObject]);
+
+  // НОВОЕ: Сортируем заявки перед тем, как их отрисовать
+  const sortedRequests = useMemo(() => {
+    const arr = [...requests];
+
+    if (sortOrder === 'date_asc') {
+      return arr.sort((a, b) => {
+        if (!a.real_delivery_date) return 1; // Заявки без даты отправляем в конец
+        if (!b.real_delivery_date) return -1;
+        return new Date(a.real_delivery_date) - new Date(b.real_delivery_date);
+      });
+    }
+
+    if (sortOrder === 'date_desc') {
+      return arr.sort((a, b) => {
+        if (!a.real_delivery_date) return 1;
+        if (!b.real_delivery_date) return -1;
+        return new Date(b.real_delivery_date) - new Date(a.real_delivery_date);
+      });
+    }
+
+    return arr; // Если выбрано "По умолчанию" (по ID/дате создания)
+  }, [requests, sortOrder]);
 
   return (
     <section className="page-section">
@@ -70,9 +97,8 @@ export function ApprovedRequestsPage() {
         subtitle="Заявки, которые прошли все этапы проверки и готовы к исполнению."
       />
 
-      {/* Панель фильтров */}
-      <div className="details-card compact filters-bar">
-        <div className="field">
+      <div className="details-card compact filters-bar" style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="field" style={{ flex: '1', minWidth: '200px' }}>
           <label>Объект</label>
           <select
             value={selectedObject}
@@ -83,8 +109,22 @@ export function ApprovedRequestsPage() {
             ))}
           </select>
         </div>
-        <div className="summary-box">
-          <span>Найдено</span>
+
+        {/* НОВОЕ: Выпадающий список для сортировки */}
+        <div className="field" style={{ flex: '1', minWidth: '200px' }}>
+          <label>Сортировка</label>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+          >
+            <option value="date_asc">По дате поставки (возрастание)</option>
+            <option value="date_desc">По дате поставки (убывание)</option>
+            <option value="default">Сначала новые (по умолчанию)</option>
+          </select>
+        </div>
+
+        <div className="summary-box" style={{ marginBottom: '4px' }}>
+          <span>Найдено: </span>
           <strong>{requests.length}</strong>
         </div>
       </div>
@@ -94,7 +134,8 @@ export function ApprovedRequestsPage() {
       {!isLoading && !requests.length ? <div className="empty-box">Нет согласованных заявок по заданным критериям.</div> : null}
 
       <div className="stack-list">
-        {requests.map((request) => <RequestCard key={request.id} request={request} />)}
+        {/* НОВОЕ: Отрисовываем отсортированный массив */}
+        {sortedRequests.map((request) => <RequestCard key={request.id} request={request} />)}
       </div>
     </section>
   );
