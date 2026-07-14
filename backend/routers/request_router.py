@@ -446,7 +446,7 @@ def update_material_responsible(
         current_user: UserDB = Depends(require_executor),  # <-- Передаем проверку сюда
         db: Session = Depends(get_db)
 ):
-    from backend.models.request import RequestMaterialDB
+    from backend.models.request import RequestMaterial
 
     mat = db.query(RequestMaterialDB).filter(
         RequestMaterialDB.id == material_id,
