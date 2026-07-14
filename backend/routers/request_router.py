@@ -448,7 +448,7 @@ def update_material_responsible(
 ):
     from backend.models.request import RequestMaterial
 
-    mat = db.query(RequestMaterialDB).filter(
+    mat = db.query(RequestMaterial).filter(
         RequestMaterialDB.id == material_id,
         RequestMaterialDB.request_id == request_id
     ).first()
