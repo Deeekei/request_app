@@ -447,7 +447,7 @@ def update_material_responsible(
         db: Session = Depends(get_db)
 ):
     # НОВОЕ: Проверка роли пользователя
-    allowed_roles = ["снабжение", "администратор", "admin", "procurement"]
+    allowed_roles = ["снабжение", "администратор", "admin", "procurement", "ADMIN", "EXECUTOR"]
     if str(current_user.role).lower() not in allowed_roles:
         raise HTTPException(status_code=403, detail="Только снабжение или администратор могут назначать ответственных")
 
