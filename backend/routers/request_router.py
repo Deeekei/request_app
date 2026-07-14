@@ -443,14 +443,9 @@ def update_material_responsible(
         request_id: int,
         material_id: int,
         payload: MaterialResponsibleUpdate,
-        current_user: UserDB = Depends(get_current_user),
+        current_user: UserDB = Depends(require_executor),  # <-- Передаем проверку сюда
         db: Session = Depends(get_db)
 ):
-    # НОВОЕ: Проверка роли пользователя
-    allowed_roles = ["снабжение", "администратор", "admin", "procurement", "ADMIN", "EXECUTOR"]
-    if str(current_user.role).lower() not in allowed_roles:
-        raise HTTPException(status_code=403, detail="Только снабжение или администратор могут назначать ответственных")
-
     from backend.models.request import RequestMaterialDB
 
     mat = db.query(RequestMaterialDB).filter(
@@ -459,8 +454,14 @@ def update_material_responsible(
     ).first()
 
     if not mat:
-        raise HTTPException(status_code=404, detail="Материал не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Материал не найден"
+        )
 
     mat.responsible = payload.responsible
     db.commit()
+
     return {"status": "ok"}
+
+
