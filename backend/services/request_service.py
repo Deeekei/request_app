@@ -7,7 +7,7 @@ from backend.repositories.agreement_material import AgreementMaterialRepository
 from backend.schemas.request_models import RequestUpdate, RequestCreate
 from datetime import date
 
-from models.enum import ObjectsEnum
+from backend.models.enum import ObjectsEnum
 
 
 class RequestService:
