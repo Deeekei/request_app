@@ -7,7 +7,7 @@ from backend.repositories.agreement_material import AgreementMaterialRepository
 from backend.schemas.request_models import RequestUpdate, RequestCreate
 from datetime import date
 
-
+from models.enum import ObjectsEnum
 
 
 class RequestService:
@@ -185,12 +185,15 @@ class RequestService:
         if not request:
             raise ValueError("Заявка не найдена")
         if request.status != OrderStatusEnum.DIRECTOR_CHECK:
-            raise ValueError("Заявка не на проверке у ПТО")
+            raise ValueError("Заявка не на проверке у Руководителя проекта")
         try:
             if approve:
-                self.request_repo.set_status(
-                    request=request, new_status=OrderStatusEnum.CUSTOMER_CHECK, responsible_role=UserRoleEnum.CUSTOMER
-                )
+                if request.object in [ObjectsEnum.AURIKA, ObjectsEnum.SVOBODA, ObjectsEnum.CENTER, ObjectsEnum.MIHAILOVKA]:
+                    self.request_repo.set_status(request=request, new_status=OrderStatusEnum.APPROVED, responsible_role=UserRoleEnum.EXECUTOR)
+                else:
+                    self.request_repo.set_status(
+                        request=request, new_status=OrderStatusEnum.CUSTOMER_CHECK, responsible_role=UserRoleEnum.CUSTOMER
+                    )
                 body = comment or "Заявка одобрена Директором АСБ"
 
             else:
