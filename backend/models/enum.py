@@ -56,3 +56,14 @@ class RequestTypeEnum(enum.Enum):
 class AttachmentTypeEnum(enum.Enum):
     REQUEST_FILE = "REQUEST_FILE"
     INVOICE = "INVOICE"
+    UPD = "UPD"
+
+class InvoicePaymentStatusEnum(str, enum.Enum):
+    UNPAID = "UNPAID"
+    PAID = "PAID"
+    ADVANCE_50 = "ADVANCE_50"
+    DEFERRED = "DEFERRED"
+
+class InvoiceApprovalStatusEnum(str, enum.Enum):
+    UNDER_REVIEW = "UNDER_REVIEW"
+    FOR_PAYMENT = "FOR_PAYMENT"

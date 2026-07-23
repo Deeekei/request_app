@@ -18,6 +18,7 @@ class RequestMaterial(Base):
     manual_unit = Column(String, nullable=True)
     manual_comment = Column(String, nullable=True)
     quantity = Column(Float, nullable=False)  # запрошенное количество
+    responsible = Column(String, nullable=True)
     overdraft = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -61,3 +62,4 @@ class RequestDB(Base):
     author = relationship("UserDB", back_populates="requests_created")
     comments = relationship("CommentDB", back_populates="request", cascade="all, delete-orphan")
     materials = relationship("RequestMaterial", back_populates="request", cascade="all, delete-orphan")
+    attachments = relationship("AttachmentDB", back_populates="request", cascade="all, delete-orphan")

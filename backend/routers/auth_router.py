@@ -154,3 +154,5 @@ async def require_executor(
     if current_user.role not in [UserRoleEnum.EXECUTOR, UserRoleEnum.ADMIN]:
         raise HTTPException(403, detail="Требуется роль снабжение")
     return current_user
+
+

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Optional
-
+from pydantic import BaseModel
 from multipart import file_path
 from datetime import date
 from backend.schemas.request_models import RequestCreate, RequestUpdate, RequestRead
@@ -25,6 +25,8 @@ from backend.routers.auth_router import require_executor
 
 router = APIRouter(prefix="/requests", tags=["Заявки"])
 
+class MaterialResponsibleUpdate(BaseModel):
+    responsible: Optional[str] = None
 
 def to_request_read(req) -> RequestRead:
     materials = [
@@ -44,6 +46,7 @@ def to_request_read(req) -> RequestRead:
                 ),
                 "manual_comment": m.manual_comment if m.is_manual else None,
                 "created_at": m.created_at,
+                "responsible": m.responsible,
             }
         )
         for m in req.materials
@@ -433,3 +436,32 @@ def update_request_status(
     )
 
     return updated_request
+
+
+@router.patch("/{request_id}/materials/{material_id}/responsible")
+def update_material_responsible(
+        request_id: int,
+        material_id: int,
+        payload: MaterialResponsibleUpdate,
+        current_user: UserDB = Depends(require_executor),  # <-- Передаем проверку сюда
+        db: Session = Depends(get_db)
+):
+    from backend.models.request import RequestMaterial
+
+    mat = db.query(RequestMaterial).filter(
+        RequestMaterial.id == material_id,
+        RequestMaterial.request_id == request_id
+    ).first()
+
+    if not mat:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Материал не найден"
+        )
+
+    mat.responsible = payload.responsible
+    db.commit()
+
+    return {"status": "ok"}
+
+

@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-
+from datetime import date
 from backend.models.enum import AttachmentTypeEnum, OrderStatusEnum, UserRoleEnum
 from backend.database import get_db
 from backend.models.attachment import AttachmentDB
@@ -13,6 +13,15 @@ from backend.models.request import RequestDB
 from backend.models.user import UserDB
 from backend.routers.auth_router import get_current_user
 from backend.schemas.attachment import AttachmentRead
+from pydantic import BaseModel
+from typing import Optional
+from backend.models.enum import InvoicePaymentStatusEnum, InvoiceApprovalStatusEnum
+
+class InvoiceStatusUpdate(BaseModel):
+    payment_status: Optional[InvoicePaymentStatusEnum] = None
+    approval_status: Optional[InvoiceApprovalStatusEnum] = None
+    delivery_date: Optional[date] = None
+    is_delivered: Optional[bool] = None
 
 router = APIRouter(prefix="/attachments", tags=["Attachments"])
 
@@ -196,6 +205,9 @@ async def delete_attachment(
                 status_code=400,
                 detail="Счёт можно удалить только у согласованной заявки",
             )
+    elif attachment.attachment_type == AttachmentTypeEnum.UPD:
+        if current_user.role != UserRoleEnum.EXECUTOR:
+            raise HTTPException(status_code=403, detail="Удалить УПД может только Снабжение")
 
     if os.path.exists(attachment.file_path):
         os.remove(attachment.file_path)
@@ -204,3 +216,61 @@ async def delete_attachment(
     db.commit()
 
     return {"ok": True}
+
+
+@router.patch("/{attachment_id}/invoice-status")
+def update_invoice_status(
+        attachment_id: int,
+        data: InvoiceStatusUpdate,
+        current_user: UserDB = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    attachment = db.query(AttachmentDB).filter(AttachmentDB.id == attachment_id).first()
+
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Файл не найден")
+
+    # Используем exclude_unset, чтобы обновлять только те поля, которые реально прислал фронтенд
+    update_data = data.model_dump(exclude_unset=True)
+
+    if "payment_status" in update_data:
+        attachment.payment_status = update_data["payment_status"]
+    if "approval_status" in update_data:
+        attachment.approval_status = update_data["approval_status"]
+    if "delivery_date" in update_data:
+        attachment.delivery_date = update_data["delivery_date"]
+    if "is_delivered" in update_data:
+        attachment.is_delivered = update_data["is_delivered"]
+
+    db.commit()
+    db.refresh(attachment)
+
+    return {
+        "message": "Данные счета обновлены",
+        "payment_status": attachment.payment_status,
+        "approval_status": attachment.approval_status,
+        "delivery_date": attachment.delivery_date
+    }
+
+@router.post("/requests/{request_id}/upd", response_model=AttachmentRead)
+async def upload_upd(
+    request_id: int,
+    file: UploadFile = File(...),
+    current_user: UserDB = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    request = db.query(RequestDB).filter(RequestDB.id == request_id).first()
+
+    if not request:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    # УПД может загружать только снабжение (или автор, если нужно — поправь условие)
+    if current_user.role != UserRoleEnum.EXECUTOR:
+        raise HTTPException(status_code=403, detail="УПД может добавить только Снабжение")
+
+    return await save_attachment_file(
+        request_id=request_id,
+        file=file,
+        attachment_type=AttachmentTypeEnum.UPD, # Используем новый тип
+        db=db,
+    )

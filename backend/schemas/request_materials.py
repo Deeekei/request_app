@@ -39,6 +39,7 @@ class RequestMaterialRead(RequestMaterialBase):
     manual_comment: Optional[str] = None
     quantity: float
     overdraft: bool
+    responsible: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

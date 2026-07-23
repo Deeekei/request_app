@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { requestApi } from '../api/requestApi';
 import { Alert } from '../components/Alert';
 import { PageHeader } from '../components/PageHeader';
 import { RequestCard } from '../components/RequestCard';
 import { useAuth } from '../context/AuthContext';
 
-// Список объектов для фильтра
 const objectOptions = [
   { value: '', label: 'Все объекты' },
   { value: 'ЖК "Аурика"', label: 'ЖК "Аурика"' },
@@ -33,7 +32,12 @@ const objectOptions = [
 export function ApprovedRequestsPage() {
   const { token } = useAuth();
   const [requests, setRequests] = useState([]);
-  const [selectedObject, setSelectedObject] = useState(''); // Состояние для фильтра по объекту
+  const [selectedObject, setSelectedObject] = useState('');
+  const [sortOrder, setSortOrder] = useState('default');
+
+  // НОВОЕ: Состояние для фильтра по снабженцу
+  const [selectedResponsible, setSelectedResponsible] = useState('');
+
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -44,10 +48,10 @@ export function ApprovedRequestsPage() {
       try {
         setIsLoading(true);
         setError('');
-        // Отправляем запрос с фильтром по статусу и объекту
+
         const data = await requestApi.list(token, {
           status: 'согласовано',
-          object: selectedObject || undefined // Если объект не выбран, передаем undefined
+          object: selectedObject || undefined
         });
         if (!cancelled) setRequests(data);
       } catch (err) {
@@ -61,7 +65,36 @@ export function ApprovedRequestsPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, selectedObject]); // Добавили selectedObject в зависимости
+  }, [token, selectedObject]);
+
+  const sortedRequests = useMemo(() => {
+    let arr = [...requests];
+
+    // НОВОЕ: Фильтруем заявки, оставляя только те, где в материалах есть выбранный снабженец
+    if (selectedResponsible) {
+      arr = arr.filter(req =>
+        req.materials && req.materials.some(m => m.responsible === selectedResponsible)
+      );
+    }
+
+    if (sortOrder === 'date_asc') {
+      return arr.sort((a, b) => {
+        if (!a.real_delivery_date) return 1;
+        if (!b.real_delivery_date) return -1;
+        return new Date(a.real_delivery_date) - new Date(b.real_delivery_date);
+      });
+    }
+
+    if (sortOrder === 'date_desc') {
+      return arr.sort((a, b) => {
+        if (!a.real_delivery_date) return 1;
+        if (!b.real_delivery_date) return -1;
+        return new Date(b.real_delivery_date) - new Date(a.real_delivery_date);
+      });
+    }
+
+    return arr;
+  }, [requests, sortOrder, selectedResponsible]); // Добавили selectedResponsible в зависимости
 
   return (
     <section className="page-section">
@@ -70,9 +103,8 @@ export function ApprovedRequestsPage() {
         subtitle="Заявки, которые прошли все этапы проверки и готовы к исполнению."
       />
 
-      {/* Панель фильтров */}
-      <div className="details-card compact filters-bar">
-        <div className="field">
+      <div className="details-card compact filters-bar" style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="field" style={{ flex: '1', minWidth: '180px' }}>
           <label>Объект</label>
           <select
             value={selectedObject}
@@ -83,18 +115,45 @@ export function ApprovedRequestsPage() {
             ))}
           </select>
         </div>
-        <div className="summary-box">
-          <span>Найдено</span>
-          <strong>{requests.length}</strong>
+
+        {/* НОВОЕ: Выпадающий список для фильтрации по снабженцу */}
+        <div className="field" style={{ flex: '1', minWidth: '150px' }}>
+          <label>Снабженец</label>
+          <select
+            value={selectedResponsible}
+            onChange={(e) => setSelectedResponsible(e.target.value)}
+          >
+            <option value="">Все</option>
+            <option value="Шубин">Шубин</option>
+            <option value="Магадеева">Магадеева</option>
+            <option value="Хабибуллин">Хабибуллин</option>
+          </select>
+        </div>
+
+        <div className="field" style={{ flex: '1', minWidth: '180px' }}>
+          <label>Сортировка</label>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+          >
+            <option value="default">Сначала новые</option>
+            <option value="date_asc">По дате поставки (возрастание)</option>
+            <option value="date_desc">По дате поставки (убывание)</option>
+          </select>
+        </div>
+
+        <div className="summary-box" style={{ marginBottom: '4px' }}>
+          <span>Найдено: </span>
+          <strong>{sortedRequests.length}</strong>
         </div>
       </div>
 
       {error ? <Alert type="error">{error}</Alert> : null}
       {isLoading ? <div className="empty-box">Загрузка заявок...</div> : null}
-      {!isLoading && !requests.length ? <div className="empty-box">Нет согласованных заявок по заданным критериям.</div> : null}
+      {!isLoading && !sortedRequests.length ? <div className="empty-box">Нет согласованных заявок по заданным критериям.</div> : null}
 
       <div className="stack-list">
-        {requests.map((request) => <RequestCard key={request.id} request={request} />)}
+        {sortedRequests.map((request) => <RequestCard key={request.id} request={request} />)}
       </div>
     </section>
   );

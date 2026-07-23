@@ -23,6 +23,7 @@ export function RequestDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [requestFilesRefreshKey, setRequestFilesRefreshKey] = useState(0);
   const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
+  const [updRefreshKey, setUpdRefreshKey] = useState(0);
 
   async function loadRequest() {
     setIsLoading(true);
@@ -51,26 +52,27 @@ export function RequestDetailsPage() {
     заказчик: (approve) => requestApi.customerReview(token, requestId, approve, reviewComment),
   }), [requestId, reviewComment, token]);
 
+  const userRole = normalizeRole(user?.role);
+  const roleForButton = user?.role ? String(user.role).toLowerCase() : '';
+
   const statusValue = normalizeEnum(request?.status).toLowerCase();
   const isDraft = statusValue === 'черновик';
   const isRejected = statusValue === 'отклонено' || statusValue === 'отклонена';
   const isApproved = statusValue === 'согласовано';
-  const isCompleted = statusValue === 'исполнено'; // Добавили проверку на исполнено
+  const isCompleted = statusValue === 'исполнено';
 
   const canEdit = (isDraft || isRejected) && user?.id === request?.author_id;
   const canSubmit = canEdit;
-  const canDelete = isDraft && user?.id === request?.author_id;
+  const canDelete = (isDraft && user?.id === request?.author_id) ||
+                  ['снабжение', 'исполнитель', 'executor', 'администратор', 'admin'].includes(roleForButton)
 
   const rawResponsible = normalizeRole(
     request?.current_responsible?.value || request?.current_responsible
   );
 
-  // Снабжение остается ответственным и в согласованных, и в исполненных
   const currentResponsible = rawResponsible === 'снабжение' && (isApproved || isCompleted)
     ? 'Снабжение'
     : (rawResponsible || '—');
-
-  const userRole = normalizeRole(user?.role);
 
   const canReview = userRole === 'администратор'
     ? ['пто', 'директор', 'заказчик'].includes(rawResponsible)
@@ -79,16 +81,19 @@ export function RequestDetailsPage() {
   const hasOverdraftMaterials = Array.isArray(request?.materials)
     && request.materials.some((item) => Boolean(item.overdraft ?? item.will_overdraft));
 
-  // Расширяем видимость блоков для согласованных И исполненных заявок
   const canDownloadExcel = isApproved || isCompleted;
   const canManageRequestFiles = user?.id === request?.author_id && (isDraft || isRejected);
   const canManageInvoices = ['исполнитель', 'снабжение', 'executor', 'администратор'].includes(userRole) && (isApproved || isCompleted);
   const canUpdatePayment = canManageInvoices;
 
-  const roleForButton = user?.role ? String(user.role).toLowerCase() : '';
   const isAllowedToComplete = ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(userRole) || ['исполнитель', 'executor', 'снабжение', 'procurement', 'администратор', 'admin'].includes(roleForButton);
 
   const canMarkCompleted = isAllowedToComplete && statusValue !== 'исполнено';
+  const canAssignResponsible = ['снабжение', 'procurement', 'администратор', 'admin'].includes(roleForButton);
+
+  const materialResponsibles = Array.from(
+    new Set((request?.materials || []).map((m) => m.responsible).filter(Boolean))
+  ).join(', ');
 
   const getPaymentStatusTone = (status) => {
     const val = normalizeEnum(status);
@@ -238,12 +243,12 @@ export function RequestDetailsPage() {
                   Оплата: {normalizeEnum(request.payment_status)}
                 </span>
 
-                <span className="muted-pill">Ответственный: {currentResponsible}</span>
+                <span className="muted-pill">Ответственный (согласование): {currentResponsible}</span>
               </div>
               <div className="actions-row">
                 {canSubmit ? <button className="button primary" type="button" onClick={handleSubmitRequest}>{isRejected ? 'Повторно отправить' : 'Отправить на согласование'}</button> : null}
                 {canDownloadExcel ? <button className="button secondary" type="button" onClick={handleDownloadExcel}>Скачать Excel</button> : null}
-                {canDelete ? <button className="button danger" type="button" onClick={handleDeleteRequest}>Удалить черновик</button> : null}
+                {canDelete ? <button className="button danger" type="button" onClick={handleDeleteRequest}>Удалить</button> : null}
               </div>
             </div>
 
@@ -252,12 +257,12 @@ export function RequestDetailsPage() {
               <div><span>Автор</span><strong>{request.author_name}</strong></div>
               <div><span>Объект</span><strong>{normalizeEnum(request.object)}</strong></div>
               <div><span>Тип заявки</span><strong>{normalizeEnum(request.request_type)}</strong></div>
+              <div><span>Закупка (материалы)</span><strong style={{color: '#10b981'}}>{materialResponsibles || '—'}</strong></div>
               <div><span>Шифр проекта</span><strong>{request.agreement}</strong></div>
               <div><span>Секция</span><strong>{request.section || '—'}</strong></div>
               <div><span>Дата доставки</span><strong>{request.delivery_date ? formatDate(request.delivery_date) : '—'}</strong></div>
               <div><span>Факт. дата поставки</span><strong>{request.real_delivery_date ? formatDate(request.real_delivery_date) : '—'}</strong></div>
               <div><span>Создано</span><strong>{formatDateTime(request.created_at)}</strong></div>
-              <div><span>Обновлено</span><strong>{formatDateTime(request.updated_at)}</strong></div>
             </div>
 
             {(canUpdatePayment || canMarkCompleted) ? (
@@ -315,7 +320,13 @@ export function RequestDetailsPage() {
             {canReview && hasOverdraftMaterials ? (
               <Alert type="error">В заявке есть материалы с перерасходом. Проверьте проблемные позиции перед принятием решения.</Alert>
             ) : null}
-            <MaterialsTable materials={request.materials} highlightOverdraft={canReview} />
+            <MaterialsTable
+              materials={request.materials}
+              highlightOverdraft={canReview}
+              requestId={request.id}
+              showResponsible={isApproved || isCompleted}
+              canEditResponsible={canAssignResponsible}
+            />
           </div>
 
           {canReview ? (
@@ -362,7 +373,6 @@ export function RequestDetailsPage() {
             />
           </div>
 
-          {/* Теперь счета видны и для СОГЛАСОВАННЫХ, и для ИСПОЛНЕННЫХ заявок */}
           {canManageInvoices || isApproved || isCompleted ? (
             <div className="details-card">
               <div className="section-title-row">
@@ -385,7 +395,35 @@ export function RequestDetailsPage() {
                 attachmentType="INVOICE"
                 refreshKey={invoiceRefreshKey}
                 canDelete={canManageInvoices}
+                canEditInvoiceStatus={canManageInvoices}
                 emptyText="Счета пока не прикреплены."
+              />
+            </div>
+          ) : null}
+
+          {canManageInvoices || isApproved || isCompleted ? (
+            <div className="details-card">
+              <div className="section-title-row">
+                <div>
+                  <h2>УПД (Закрывающие документы)</h2>
+                  <p>УПД загружаются после оплаты или получения товара.</p>
+                </div>
+              </div>
+              {canManageInvoices ? (
+                <AttachmentUpload
+                  requestId={request.id}
+                  attachmentType="UPD"
+                  title="Добавить УПД"
+                  buttonLabel="Загрузить УПД"
+                  onUploaded={() => setUpdRefreshKey((value) => value + 1)}
+                />
+              ) : null}
+              <AttachmentList
+                requestId={request.id}
+                attachmentType="UPD"
+                refreshKey={updRefreshKey}
+                canDelete={canManageInvoices}
+                emptyText="УПД пока не прикреплены."
               />
             </div>
           ) : null}

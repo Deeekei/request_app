@@ -3,7 +3,9 @@ import { formatDateTime, formatStatus, normalizeEnum, statusTone } from '../util
 
 export function RequestCard({ request }) {
   const isDraft = normalizeEnum(request.status).toLowerCase() === 'черновик';
-
+  const materialResponsibles = Array.from(
+    new Set((request?.materials || []).map((m) => m.responsible).filter(Boolean))
+  ).join(', ');
   // Функция для определения цвета статуса оплаты
   const getPaymentStatusTone = (status) => {
     const val = normalizeEnum(status);
@@ -39,6 +41,11 @@ export function RequestCard({ request }) {
       <div className="meta-grid">
         <span><strong>Автор:</strong> {request.author_name}</span>
         <span><strong>Объект:</strong> {normalizeEnum(request.object)}</span>
+        {materialResponsibles ? (
+    <div style={{ marginTop: '8px', fontSize: '13px', color: '#10b981', fontWeight: '500' }}>
+      Ответственные: {materialResponsibles}
+    </div>
+  ) : null}
         <span><strong>Тип:</strong> {normalizeEnum(request.request_type)}</span>
         {/* Статус оплаты из этой сетки удален, так как он теперь сверху */}
         <span><strong>Шифр проекта:</strong> {request.agreement}</span>

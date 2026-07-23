@@ -290,17 +290,23 @@ class RequestService:
             self.db.rollback()
             raise
 
-
     def delete_draft(self, request_id: int, current_user: UserDB):
         request = self.request_repo.get_by_id_for_update(request_id)
         if not request:
             raise ValueError("Заявка не найдена")
 
-        if current_user.id != request.author_id:
-            raise PermissionError("Только автор может удалить заявку")
+        # 1. Проверяем особые права: Снабжение или Администратор
+        # Убедись, что константы (EXECUTOR, ADMIN) совпадают с твоим UserRoleEnum
+        is_privileged = current_user.role in [UserRoleEnum.EXECUTOR, UserRoleEnum.ADMIN]
 
-        if request.status != OrderStatusEnum.DRAFT:
-            raise ValueError("Можно удалить только черновик")
+        # 2. Правило для обычных пользователей: должен быть автором и это должен быть черновик
+        is_author_of_draft = (current_user.id == request.author_id and request.status == OrderStatusEnum.DRAFT)
+
+        # 3. Вердикт: если ни то, ни другое, бьем по рукам
+        if not (is_privileged or is_author_of_draft):
+            raise PermissionError(
+                "Удалять заявку может только её автор (в статусе черновика) или отдел снабжения"
+            )
 
         try:
             self.request_repo.delete(request)
