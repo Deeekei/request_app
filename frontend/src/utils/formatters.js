@@ -33,6 +33,8 @@ const ENUM_LABELS = {
   EVPATORIA: 'Апартаменты в г. Евпатория',
   ATAEVKA: 'КРТ Д.Атаевка',
   BAZILEEVKA: 'КРТ п. Базилевка',
+  ASB: 'Склад АСБ',
+  BGS: 'Склад БГС',
 
   PAID: 'Оплачено',
   UNPAID: 'Неоплачено',

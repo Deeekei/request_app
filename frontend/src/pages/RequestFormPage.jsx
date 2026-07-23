@@ -29,6 +29,8 @@ const objectOptions = [
   { value: 'Апартаменты в г. Евпатория', label: 'Апартаменты в г. Евпатория' },
   { value: 'КРТ Д.Атаевка', label: 'КРТ Д.Атаевка' },
   { value: 'КРТ п. Базилевка', label: 'КРТ п. Базилевка' },
+  { value: 'Склад АСБ', label: 'Склад АСБ' },
+  { value: 'Склад БГС', label: 'Склад БГС' },
 ];
 
 const requestTypeOptions = [

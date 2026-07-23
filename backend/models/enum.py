@@ -39,6 +39,8 @@ class ObjectsEnum(enum.Enum):
     EVPATORIA = 'Апартаменты в г. Евпатория'
     ATAEVKA = 'КРТ Д.Атаевка'
     BAZILEEVKA = 'КРТ п. Базилевка,'
+    ASB = 'Склад АСБ'
+    BGS = 'Склад БГС'
 
 
 class PaymentStatusEnum(enum.Enum):

@@ -118,7 +118,28 @@ class RequestService:
                 for item in request.materials:
                     if not item.is_manual:
                         self.agreement_material_repo.spend(item.agreement_material_id, item.quantity)
-                body = "Заявка на хозяйственные материалы, и не требует согласования"
+                body = "Заявка на хозяйственные материалы и не требует согласования"
+            elif request.object == ObjectsEnum.BGS:
+                self.request_repo.set_status(
+                    request=request, new_status=OrderStatusEnum.CUSTOMER_CHECK, responsible_role=UserRoleEnum.CUSTOMER
+                )
+
+                for item in request.materials:
+                    if not item.is_manual:
+                        self.agreement_material_repo.reserve(item.agreement_material_id, item.quantity)
+                body = "Заявка на склад БГС создана"
+
+            elif request.object == ObjectsEnum.ASB:
+                self.request_repo.set_status(
+                    request=request, new_status=OrderStatusEnum.DIRECTOR_CHECK, responsible_role=UserRoleEnum.DIRECTOR
+                )
+
+                for item in request.materials:
+                    if not item.is_manual:
+                        self.agreement_material_repo.reserve(item.agreement_material_id, item.quantity)
+                body = "Заявка на склад АСБ создана"
+
+
             else:
                 for item in request.materials:
                     if not item.is_manual:
