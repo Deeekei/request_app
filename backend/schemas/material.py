@@ -25,6 +25,8 @@ class ObjectEnum(str, Enum):
     EVPATORIA = 'Апартаменты в г. Евпатория'
     ATAEVKA = 'КРТ Д.Атаевка'
     BAZILEEVKA = 'КРТ п. Базилевка,'
+    ASB = 'Склад АСБ'
+    BGS = 'Склад БГС'
 
 class MaterialBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
